@@ -1,0 +1,116 @@
+<main class="editor-page">
+  <header>
+    <a class="icon-button" routerLink="/vault/all" aria-label="Cancel and go back"
+      ><app-icon name="back"
+    /></a>
+    <div>
+      <p>{{ existing ? 'Edit item' : 'New encrypted item' }}</p>
+      <h1>{{ type.toLowerCase().replace('_', ' ') }}</h1>
+    </div>
+    <button class="primary-button compact" type="button" (click)="save()">Save</button>
+  </header>
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <section class="form-card">
+      <h2>Item details</h2>
+      <label
+        >Title<input
+          type="text"
+          formControlName="title"
+          autocomplete="off"
+          placeholder="e.g. GitHub" /></label
+      ><label class="check"
+        ><input type="checkbox" formControlName="favourite" /><span>Add to favourites</span></label
+      >
+    </section>
+    <section class="form-card" formArrayName="fields">
+      <div class="section-title">
+        <div>
+          <h2>Fields</h2>
+          <p>Sensitive values are hidden by default.</p>
+        </div>
+        <button class="quiet-button" type="button" (click)="addField()">
+          <app-icon name="plus" />Add another field
+        </button>
+      </div>
+      @for (field of fields.controls; track field.controls.id.value; let index = $index) {
+        <div class="dynamic-field" [formGroupName]="index">
+          <label
+            >Field name<input type="text" formControlName="label" placeholder="Field name" /></label
+          ><label
+            >Type<select formControlName="type">
+              <option value="TEXT">Text</option>
+              <option value="MULTILINE">Multiline text</option>
+              <option value="USERNAME">Username</option>
+              <option value="PASSWORD">Password</option>
+              <option value="WEBSITE">Website</option>
+              <option value="EMAIL">Email</option>
+              <option value="PHONE">Phone</option>
+              <option value="PIN">PIN</option>
+              <option value="SECRET">Secret</option>
+              <option value="OTP">One-time password secret</option>
+              <option value="DATE">Date</option>
+              <option value="EXPIRY">Expiry</option>
+              <option value="BOOLEAN">Boolean</option>
+              <option value="HIDDEN">Hidden value</option>
+            </select></label
+          ><label class="field-value"
+            >Value<textarea formControlName="value" rows="1" placeholder="Value"></textarea></label
+          ><label class="check sensitive"
+            ><input type="checkbox" formControlName="sensitive" /><span>Sensitive</span></label
+          >
+          <div class="field-actions">
+            <button
+              class="icon-button"
+              type="button"
+              (click)="move(index, -1)"
+              [disabled]="index === 0"
+              aria-label="Move field up"
+            >
+              ↑</button
+            ><button
+              class="icon-button"
+              type="button"
+              (click)="move(index, 1)"
+              [disabled]="index === fields.length - 1"
+              aria-label="Move field down"
+            >
+              ↓</button
+            ><button
+              class="icon-button"
+              type="button"
+              (click)="duplicateField(index)"
+              aria-label="Duplicate field"
+            >
+              <app-icon name="copy" /></button
+            ><button
+              class="icon-button danger"
+              type="button"
+              (click)="removeField(index)"
+              aria-label="Remove field"
+            >
+              <app-icon name="trash" />
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+    <section class="form-card">
+      <h2>Organisation</h2>
+      <label
+        >Labels <span>Comma separated</span
+        ><input type="text" formControlName="labels" placeholder="Work, Personal" /></label
+      ><label
+        >Expiry date <span>Optional</span><input type="date" formControlName="expiresAt" /></label
+      ><label
+        >Notes <span>Optional</span
+        ><textarea formControlName="notes" rows="6" placeholder="Plain text notes"></textarea>
+      </label>
+    </section>
+    <div class="form-footer">
+      <a class="secondary-button" routerLink="/vault/all">Cancel</a
+      ><button class="primary-button" type="submit">
+        <app-icon name="shield" />Save encrypted item
+      </button>
+    </div>
+  </form>
+</main>

@@ -1,0 +1,159 @@
+<main class="settings-page">
+  <header>
+    <p class="eyebrow">Preferences</p>
+    <h1>Settings</h1>
+    <p>Control how Vault Nest behaves on this device.</p>
+  </header>
+  <section>
+    <h2>Appearance</h2>
+    <div class="setting-card theme-options">
+      <button
+        type="button"
+        [class.active]="preferences().theme === 'LIGHT'"
+        (click)="setTheme('LIGHT')"
+      >
+        <app-icon name="sun" /><span
+          ><strong>Light</strong><small>Always use light mode</small></span
+        ></button
+      ><button
+        type="button"
+        [class.active]="preferences().theme === 'DARK'"
+        (click)="setTheme('DARK')"
+      >
+        <app-icon name="moon" /><span
+          ><strong>Dark</strong><small>Always use dark mode</small></span
+        ></button
+      ><button
+        type="button"
+        [class.active]="preferences().theme === 'AUTOMATIC'"
+        (click)="setTheme('AUTOMATIC')"
+      >
+        <app-icon name="settings" /><span
+          ><strong>Automatic</strong><small>Follow your device</small></span
+        >
+      </button>
+    </div>
+  </section>
+  <section>
+    <h2>Security</h2>
+    <div class="setting-card rows">
+      <button type="button" (click)="toggle('lockOnBackground')">
+        <span
+          ><app-icon name="lock" /><span
+            ><strong>Lock in background</strong
+            ><small>Lock when the application leaves the foreground</small></span
+          ></span
+        ><b [class.on]="preferences().lockOnBackground">{{
+          preferences().lockOnBackground ? 'On' : 'Off'
+        }}</b></button
+      ><button type="button" (click)="toggle('screenshotProtection')">
+        <span
+          ><app-icon name="shield" /><span
+            ><strong>Screenshot protection</strong
+            ><small
+              >Android may prevent captures and recent-app previews on protected screens</small
+            ></span
+          ></span
+        ><b [class.on]="preferences().screenshotProtection">{{
+          preferences().screenshotProtection ? 'On' : 'Off'
+        }}</b></button
+      ><button type="button" (click)="clearClipboard()">
+        <span
+          ><app-icon name="clipboard" /><span
+            ><strong>Clear clipboard now</strong
+            ><small>Vault Nest never clears copied values automatically</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+    </div>
+    <div class="setting-card attempt-setting">
+      <label for="maximum-unlock-attempts">
+        <span>
+          <strong>Failed password attempts</strong>
+          <small>How many incorrect master-password attempts are allowed?</small>
+        </span>
+        <select
+          id="maximum-unlock-attempts"
+          [value]="preferences().maxUnlockAttempts ?? 'unlimited'"
+          (change)="setMaxUnlockAttempts($event)"
+        >
+          <option value="unlimited">Unlimited (default)</option>
+          <option value="3">3 attempts</option>
+          <option value="5">5 attempts</option>
+          <option value="10">10 attempts</option>
+        </select>
+      </label>
+      @if (preferences().maxUnlockAttempts !== null) {
+        <p class="destructive-warning" role="alert">
+          <app-icon name="trash" />
+          After {{ preferences().maxUnlockAttempts }} incorrect attempts, the account, every
+          password, and the complete local database will be permanently deleted. This cannot be
+          undone.
+        </p>
+      }
+    </div>
+  </section>
+  <section>
+    <h2>Data</h2>
+    <div class="setting-card rows">
+      <button type="button">
+        <span
+          ><app-icon name="shield" /><span
+            ><strong>Encrypted backup</strong
+            ><small>Create or restore a .vaultpack file</small></span
+          ></span
+        ><app-icon name="chevron_down" /></button
+      ><button type="button">
+        <span
+          ><app-icon name="archive" /><span
+            ><strong>Trash retention</strong
+            ><small>{{ preferences().trashRetentionDays }} days</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+      <button type="button" class="destructive-row" (click)="clearDatabaseOpen.set(true)">
+        <span
+          ><app-icon name="trash" /><span
+            ><strong>Clear vault database</strong
+            ><small>Delete every saved vault item while keeping this account</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+    </div>
+  </section>
+  <p class="about">
+    Vault Nest stores encrypted data only on this device. Browser screenshot blocking is not
+    technically reliable and is never claimed.
+  </p>
+  @if (message()) {
+    <span class="toast" role="status">{{ message() }}</span>
+  }
+  <app-confirmation-dialog
+    [open]="clearDatabaseOpen()"
+    [busy]="clearingDatabase()"
+    dialogId="clear-vault-database"
+    title="Clear the complete vault database?"
+    message="Every saved password and vault item will be permanently deleted. Your master password, account, and preferences will remain. This action cannot be undone."
+    acknowledgementLabel="I understand that every saved vault item will be permanently deleted."
+    confirmLabel="Clear database"
+    busyLabel="Clearing database…"
+    (cancelled)="clearDatabaseOpen.set(false)"
+    (confirmed)="clearVaultDatabase()"
+  />
+  <app-confirmation-dialog
+    [open]="attemptLimitConfirmationOpen()"
+    [busy]="savingAttemptLimit()"
+    dialogId="confirm-failed-attempt-limit"
+    title="Enable permanent deletion after failed attempts?"
+    [message]="
+      'After ' +
+      pendingMaxUnlockAttempts() +
+      ' incorrect master-password attempts, the account, every password, and the complete local database will be permanently deleted. Another person could trigger this deletion by repeatedly trying to unlock the app.'
+    "
+    acknowledgementLabel="I understand that reaching this limit will permanently delete all local vault data."
+    [confirmLabel]="'Enable ' + pendingMaxUnlockAttempts() + '-attempt limit'"
+    busyLabel="Saving limit…"
+    (cancelled)="cancelAttemptLimitChange()"
+    (confirmed)="confirmAttemptLimitChange()"
+  />
+</main>

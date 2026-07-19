@@ -1,0 +1,76 @@
+<main class="auth-page">
+  <section class="auth-card" aria-labelledby="setup-title">
+    <app-brand-mark />
+    <div>
+      <p class="eyebrow">Your private space</p>
+      <h1 id="setup-title">Create your vault</h1>
+      <p class="lede">Encrypted on this device. Available without an internet connection.</p>
+    </div>
+    @if (accountWasDeleted()) {
+      <p class="form-error" role="alert">
+        The previous vault and all of its local data were permanently deleted. Create a new vault to
+        continue.
+      </p>
+    }
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label
+        >Master password<span class="field"
+          ><input
+            [type]="showPassword() ? 'text' : 'password'"
+            formControlName="password"
+            [class.invalid]="passwordIsInvalid()"
+            [attr.aria-invalid]="passwordIsInvalid()"
+            aria-describedby="master-password-requirements"
+            autocomplete="new-password" /><button
+            type="button"
+            class="icon-button"
+            (click)="showPassword.set(!showPassword())"
+            [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+          >
+            <app-icon [name]="showPassword() ? 'eye_off' : 'eye'" /></button></span
+        ><small>Create a unique password that you do not use for any other account.</small>
+        <ul
+          id="master-password-requirements"
+          class="password-requirements"
+          aria-label="Master password requirements"
+        >
+          <li [class.met]="passwordMeets('length')">At least 12 characters</li>
+          <li [class.met]="passwordMeets('lowercase')">One lowercase letter</li>
+          <li [class.met]="passwordMeets('uppercase')">One uppercase letter</li>
+          <li [class.met]="passwordMeets('number')">One number</li>
+          <li [class.met]="passwordMeets('symbol')">One symbol, such as !, #, or @</li>
+        </ul></label
+      >
+      <label
+        >Confirm master password<input
+          [type]="showPassword() ? 'text' : 'password'"
+          formControlName="confirm"
+          [class.invalid]="confirmationIsInvalid()"
+          [attr.aria-invalid]="confirmationIsInvalid()"
+          autocomplete="new-password"
+        />
+        @if (confirmationIsInvalid()) {
+          <small class="field-error">Enter the same master password again.</small>
+        }
+      </label>
+      <label
+        >Password hint <span class="optional">Optional</span
+        ><input type="text" formControlName="hint" autocomplete="off" /><small
+          >The hint is visible on the lock screen. Never put your password in it.</small
+        ></label
+      >
+      <label class="check"
+        ><input type="checkbox" formControlName="acknowledgement" /><span
+          >I understand that Vault Nest cannot recover my vault if I lose my master password.</span
+        ></label
+      >
+      @if (error()) {
+        <p class="form-error" role="alert">{{ error() }}</p>
+      }
+      <button class="primary-button" type="submit" [disabled]="saving() || form.invalid">
+        <app-icon name="shield" />{{ saving() ? 'Creating vault…' : 'Create encrypted vault' }}
+      </button>
+    </form>
+    <p class="privacy-note"><app-icon name="lock" /> No account, cloud, analytics, or trackers.</p>
+  </section>
+</main>

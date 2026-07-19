@@ -1,0 +1,269 @@
+.shell {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-columns: 17rem minmax(0, 1fr);
+  background: var(--surface-subtle);
+}
+.drawer {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  padding: 1.25rem;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.drawer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.drawer-close {
+  display: none;
+}
+.drawer nav {
+  display: grid;
+  gap: 0.2rem;
+  overflow: auto;
+}
+.nav-label {
+  margin: 1rem 0.75rem 0.35rem;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.drawer a {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.7rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.drawer a span {
+  flex: 1;
+}
+.drawer a b {
+  font-size: 0.72rem;
+}
+.drawer a:hover,
+.drawer a.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.drawer footer {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+.drawer footer p {
+  margin: 0;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+}
+.drawer footer .remove-account-button {
+  color: var(--danger);
+}
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #071016b8;
+  backdrop-filter: blur(4px);
+}
+.remove-dialog {
+  width: min(100%, 29rem);
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 1.1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.dialog-icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border-radius: 0.85rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.remove-dialog h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.remove-dialog p {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.remove-dialog form,
+.remove-dialog label {
+  display: grid;
+  gap: 0.45rem;
+}
+.remove-dialog label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+.remove-dialog input[type='password'] {
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.remove-dialog .delete-acknowledgement {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  margin-top: 0.9rem;
+  color: var(--danger);
+  line-height: 1.45;
+}
+.delete-acknowledgement input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--danger);
+}
+.remove-dialog .dialog-error {
+  padding: 0.7rem;
+  border-radius: 0.65rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.danger-button {
+  display: inline-flex;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: 0.7rem;
+  background: var(--danger);
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.workspace {
+  min-width: 0;
+}
+.mobile-header,
+.bottom-nav,
+.scrim {
+  display: none;
+}
+@media (max-width: 780px) {
+  .shell {
+    display: block;
+    padding-bottom: 4.5rem;
+  }
+  .drawer {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: min(88vw, 19rem);
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  .drawer-is-open .drawer {
+    transform: none;
+  }
+  .drawer-close,
+  .scrim {
+    display: grid;
+  }
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    border: 0;
+    background: #07101699;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .drawer-is-open .scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    min-height: 4.25rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(16px);
+  }
+  .mobile-header app-brand-mark {
+    transform: scale(0.86);
+  }
+  .bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0.35rem 0.4rem max(0.35rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .bottom-nav a {
+    display: grid;
+    min-height: 3.55rem;
+    place-items: center;
+    align-content: center;
+    gap: 0.18rem;
+    color: var(--text-faint);
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 650;
+  }
+  .bottom-nav a.active {
+    color: var(--accent-strong);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .scrim {
+    transition: none;
+  }
+}

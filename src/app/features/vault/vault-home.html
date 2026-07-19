@@ -1,0 +1,169 @@
+<section class="vault-page">
+  <div class="list-pane">
+    <header class="pane-header">
+      <div>
+        <p class="eyebrow">My vault</p>
+        <h1>{{ title }}</h1>
+      </div>
+      <div class="header-actions">
+        <button class="icon-button" type="button" aria-label="Filter and sort">
+          <app-icon name="filter" />
+        </button>
+      </div>
+    </header>
+    <label class="search"
+      ><app-icon name="search" /><span class="sr-only">Search vault</span
+      ><input
+        type="search"
+        placeholder="Search titles, labels and safe fields"
+        [value]="vault.query()"
+        (input)="setQuery($event)"
+    /></label>
+    <div class="filter-row" aria-label="Item type filters">
+      <button
+        type="button"
+        [class.active]="vault.typeFilter() === 'ALL'"
+        (click)="vault.typeFilter.set('ALL')"
+      >
+        All</button
+      ><button
+        type="button"
+        [class.active]="vault.typeFilter() === 'LOGIN'"
+        (click)="vault.typeFilter.set('LOGIN')"
+      >
+        Logins</button
+      ><button
+        type="button"
+        [class.active]="vault.typeFilter() === 'NOTE'"
+        (click)="vault.typeFilter.set('NOTE')"
+      >
+        Notes</button
+      ><button
+        type="button"
+        [class.active]="vault.typeFilter() === 'IDENTITY'"
+        (click)="vault.typeFilter.set('IDENTITY')"
+      >
+        Identity
+      </button>
+    </div>
+    <div class="item-list">
+      @for (item of items(); track item.id) {
+        <app-vault-item-card
+          [item]="item"
+          [selected]="vault.selectedId() === item.id"
+          (chosen)="vault.selectedId.set($event)"
+        />
+      } @empty {
+        <div class="empty">
+          <span><app-icon [name]="favouritesOnly ? 'favourite' : 'shield'" /></span>
+          <h2>
+            {{
+              vault.query()
+                ? 'Nothing matched'
+                : favouritesOnly
+                  ? 'No favourites yet'
+                  : 'Your vault is ready'
+            }}
+          </h2>
+          <p>
+            {{
+              vault.query()
+                ? 'Try a different title, label, or item type.'
+                : 'Add your first encrypted item to get started.'
+            }}
+          </p>
+          <a class="primary-button" routerLink="/vault/new/LOGIN"
+            ><app-icon name="plus" />Add login</a
+          >
+        </div>
+      }
+    </div>
+  </div>
+  <aside class="details-pane" aria-live="polite">
+    @if (vault.selected(); as item) {
+      <header class="detail-header">
+        <span class="hero-icon"
+          ><app-icon
+            [name]="
+              item.type === 'LOGIN'
+                ? 'key'
+                : item.type === 'NOTE'
+                  ? 'note'
+                  : item.type === 'IDENTITY'
+                    ? 'identity'
+                    : item.type === 'WIFI'
+                      ? 'wifi'
+                      : 'custom'
+            "
+        /></span>
+        <div>
+          <p>{{ item.type.replace('_', ' ') }}</p>
+          <h2>{{ item.title }}</h2>
+        </div>
+        <button
+          class="icon-button star-button"
+          type="button"
+          (click)="vault.toggleFavourite(item)"
+          [attr.aria-label]="item.favourite ? 'Remove from favourites' : 'Add to favourites'"
+        >
+          <app-icon [name]="item.favourite ? 'star' : 'favourite'" />
+        </button>
+      </header>
+      <div class="labels">
+        @for (label of item.labels; track label) {
+          <span>{{ label }}</span>
+        }
+      </div>
+      <div class="field-list">
+        @for (field of item.fields; track field.id) {
+          <app-secret-field [field]="field" />
+        }
+      </div>
+      @if (item.notes) {
+        <section class="notes">
+          <h3>Notes</h3>
+          <p>{{ item.notes }}</p>
+        </section>
+      }
+      <dl class="metadata">
+        <div>
+          <dt>Created</dt>
+          <dd>{{ item.createdAt.slice(0, 10) }}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{{ item.updatedAt.slice(0, 10) }}</dd>
+        </div>
+      </dl>
+      <a class="secondary-button edit-button" [routerLink]="['/vault/edit', item.id]"
+        ><app-icon name="more" />Edit item</a
+      >
+    } @else {
+      <div class="detail-empty">
+        <app-icon name="panel" />
+        <h2>Select an item</h2>
+        <p>Its decrypted details appear here only while your vault is unlocked.</p>
+      </div>
+    }
+  </aside>
+  <div class="fab-wrap">
+    <button
+      class="fab"
+      type="button"
+      (click)="addOpen.set(!addOpen())"
+      [attr.aria-expanded]="addOpen()"
+      aria-label="Add vault item"
+    >
+      <app-icon [name]="addOpen() ? 'close' : 'plus'" />
+    </button>
+    @if (addOpen()) {
+      <div class="add-menu">
+        <a routerLink="/vault/new/CUSTOM"><app-icon name="custom" />Custom item</a
+        ><a routerLink="/vault/new/WIFI"><app-icon name="wifi" />Wi-Fi</a
+        ><a routerLink="/vault/new/IDENTITY"><app-icon name="identity" />Identity</a
+        ><a routerLink="/vault/new/NOTE"><app-icon name="note" />Secure note</a
+        ><a routerLink="/vault/new/LOGIN"><app-icon name="key" />Login</a>
+      </div>
+    }
+  </div>
+</section>

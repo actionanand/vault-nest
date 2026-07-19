@@ -1,0 +1,73 @@
+<main class="generator-page">
+  <header>
+    <p class="eyebrow">Security tool</p>
+    <h1>Password generator</h1>
+    <p>Create a strong random password locally using cryptographically secure randomness.</p>
+  </header>
+  <section class="result-card">
+    <p>Generated password</p>
+    <output>{{ password() }}</output>
+    <div class="result-meta">
+      <span><i></i>{{ strength() }}</span
+      ><span>~{{ entropy() }} bits estimated entropy</span>
+    </div>
+    <div class="result-actions">
+      <button class="secondary-button" type="button" (click)="regenerate()">
+        <app-icon name="sparkle" />Regenerate</button
+      ><button class="primary-button" type="button" (click)="copy()">
+        <app-icon name="copy" />{{ copied() ? 'Copied' : 'Copy password' }}
+      </button>
+    </div>
+  </section>
+  <section class="options-card">
+    <div class="length">
+      <label for="length">Length</label><output>{{ options().length }}</output
+      ><input
+        id="length"
+        type="range"
+        min="8"
+        max="64"
+        [ngModel]="options().length"
+        (ngModelChange)="update('length', $event)"
+      />
+    </div>
+    <div class="toggles">
+      <label
+        ><span><strong>Uppercase letters</strong><small>A–Z</small></span
+        ><input
+          type="checkbox"
+          [ngModel]="options().uppercase"
+          (ngModelChange)="update('uppercase', $event)" /></label
+      ><label
+        ><span><strong>Lowercase letters</strong><small>a–z</small></span
+        ><input
+          type="checkbox"
+          [ngModel]="options().lowercase"
+          (ngModelChange)="update('lowercase', $event)" /></label
+      ><label
+        ><span><strong>Numbers</strong><small>0–9</small></span
+        ><input
+          type="checkbox"
+          [ngModel]="options().numbers"
+          (ngModelChange)="update('numbers', $event)" /></label
+      ><label
+        ><span><strong>Symbols</strong><small>! @ # $ …</small></span
+        ><input
+          type="checkbox"
+          [ngModel]="options().symbols"
+          (ngModelChange)="update('symbols', $event)" /></label
+      ><label
+        ><span
+          ><strong>Avoid ambiguous characters</strong><small>Remove I, l, 1, O and 0</small></span
+        ><input
+          type="checkbox"
+          [ngModel]="options().avoidAmbiguous"
+          (ngModelChange)="update('avoidAmbiguous', $event)"
+      /></label>
+    </div>
+  </section>
+  <p class="analysis">
+    <app-icon name="shield" />This password appears {{ strength().toLowerCase() }} based on local
+    analysis. It is never sent anywhere.
+  </p>
+</main>
