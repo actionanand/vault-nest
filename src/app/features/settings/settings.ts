@@ -11,6 +11,7 @@ import { BackupService } from '../../core/services/backup.service';
 import { ClipboardService } from '../../core/services/clipboard.service';
 import { AuthStore } from '../../core/services/auth.store';
 import { IntrusionEvidenceService } from '../../core/services/intrusion-evidence.service';
+import { ScreenshotProtectionService } from '../../core/services/screenshot-protection.service';
 
 @Component({
   selector: 'app-settings',
@@ -24,6 +25,7 @@ export class Settings implements OnInit {
   private readonly credentialNotifications = inject(CredentialNotificationService);
   private readonly backup = inject(BackupService);
   private readonly clipboard = inject(ClipboardService);
+  private readonly screenshotProtection = inject(ScreenshotProtectionService);
   readonly auth = inject(AuthStore);
   readonly intrusionEvidence = inject(IntrusionEvidenceService);
   readonly themeService = inject(ThemeService);
@@ -66,6 +68,9 @@ export class Settings implements OnInit {
     const updated = { ...this.preferences(), [key]: !this.preferences()[key] };
     this.preferences.set(updated);
     await this.storage.savePreferences(updated);
+    if (key === 'screenshotProtection') {
+      this.screenshotProtection.apply(updated.screenshotProtection);
+    }
   }
   async setMaxUnlockAttempts(event: Event): Promise<void> {
     const select = event.target as HTMLSelectElement;

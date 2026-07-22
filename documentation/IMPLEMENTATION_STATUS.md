@@ -13,7 +13,7 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Unlimited dynamic fields with duplicate, remove, move-up, and move-down actions.
 - Vault list, responsive details pane, reveal/copy, favourites, labels, expiry, notes, and safe-field search.
 - Secure random password generator with local entropy classification.
-- Light, dark, and automatic themes; five-minute best-effort clipboard clearing.
+- Light, dark, and automatic themes; five-minute best-effort clipboard clearing with Android native delayed cleanup.
 - Persisted failed-password limits with Unlimited as the default and explicit destructive warnings.
 - Persisted unlimited-mode cooldown escalation and finite easy-login full-password/biometric recovery.
 - Opt-in Android front-camera intrusion evidence with Keystore encryption, timestamped post-login review, download, retention, and confirmed deletion.
@@ -21,9 +21,9 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Responsive credential details on mobile and desktop with labels, confirmed archive/trash actions, reusable templates, duplicate, and consent-based sensitive sharing.
 - Dedicated Archive and Trash views with restore, permanent deletion, and configurable automatic retention.
 - Versioned, passphrase-encrypted `.vaultpack` backup and transactional restore through browser and Android system file pickers.
-- Android-only username/email/password notification copy shortcuts with a three-minute locked-vault window and no plaintext credential values in notification metadata.
+- Android-only username/email/password notification copy shortcuts with a three-minute locked-vault window, native delayed notification cleanup, and no plaintext credential values in notification metadata.
 - Optional first-four/last-four easy login and Android Keystore-backed strong-biometric unlock, both with the full master password as fallback.
-- Compact gzip-before-encryption backups, safe-area mobile navigation, theme-aware Android system bars, and monochrome notification icons.
+- Compact gzip-before-encryption backups, safe-area mobile navigation, theme-aware Android system bars, branded native splash resources, padded launcher icons, optional Android screenshot blocking, and monochrome notification icons.
 - Android Capacitor configuration and signed/unsigned CI artifact workflow using the brand image.
 
 ## Next implementation slice
@@ -38,7 +38,7 @@ This document distinguishes shipped code from product requirements. A visible pl
 ## Production-hardening slice
 
 - Backup merge mode, duplicate resolution, and automatic pre-restore safety backup.
-- Native optional screenshot protection with all/sensitive scope application.
+- Screenshot-protection scope refinement between all screens and sensitive-only screens.
 - Password change by atomic vault-key rewrap.
 - Failed-attempt delay and lockout countdown.
 - Comprehensive repository, crypto, migration, component, backup, attachment, TOTP, accessibility, and Android integration tests.

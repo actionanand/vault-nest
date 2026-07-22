@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { DOCUMENT } from '@angular/common';
 import { Service, inject, signal } from '@angular/core';
 import type { VaultField, VaultItem } from '../models/vault.models';
 import { ClipboardService } from './clipboard.service';
@@ -14,6 +15,14 @@ const NOTIFIABLE_TYPES: ReadonlySet<VaultField['type']> = new Set([
   'EMAIL',
 ]);
 
+interface NativeCredentialNotificationBridge {
+  cancelCredentialNotifications(csvIds: string, delayMs: number): void;
+}
+
+interface NativeCredentialNotificationWindow extends Window {
+  VaultNestNative?: NativeCredentialNotificationBridge;
+}
+
 interface CopyShortcut {
   readonly value: string;
   readonly label: string;
@@ -22,6 +31,7 @@ interface CopyShortcut {
 
 @Service()
 export class CredentialNotificationService {
+  private readonly document = inject(DOCUMENT);
   private readonly clipboard = inject(ClipboardService);
   private readonly theme = inject(ThemeService);
   private initialised = false;
@@ -117,6 +127,7 @@ export class CredentialNotificationService {
       await LocalNotifications.schedule({
         notifications,
       });
+      this.scheduleNativeNotificationCleanup([...this.shortcuts.keys()], COPY_WINDOW_MS);
       this.expiryTimer = setTimeout(() => void this.clearCopyShortcuts(), COPY_WINDOW_MS);
       this.showMessage(
         `${fields.length} copy ${fields.length === 1 ? 'shortcut is' : 'shortcuts are'} available for 3 minutes, even after locking.`,
@@ -136,6 +147,7 @@ export class CredentialNotificationService {
     }
     const ids = [...this.shortcuts.keys()];
     this.shortcuts.clear();
+    this.scheduleNativeNotificationCleanup(ids, 0);
     if (!this.isAndroid()) return;
     try {
       if (ids.length) {
@@ -165,6 +177,17 @@ export class CredentialNotificationService {
     });
     if (notifications.length) {
       await LocalNotifications.removeDeliveredNotifications({ notifications });
+    }
+  }
+
+  private scheduleNativeNotificationCleanup(ids: readonly number[], delayMs: number): void {
+    if (!ids.length) return;
+    try {
+      (
+        this.document.defaultView as NativeCredentialNotificationWindow | null
+      )?.VaultNestNative?.cancelCredentialNotifications(ids.join(','), delayMs);
+    } catch {
+      // Native notification cleanup is only available in the Android shell.
     }
   }
 
