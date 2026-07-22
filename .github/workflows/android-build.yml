@@ -7,7 +7,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   MIN_SDK_VERSION: 24
@@ -34,6 +34,17 @@ jobs:
         uses: android-actions/setup-android@v3
       - name: Install locked dependencies
         run: npm ci
+      - name: Bump versionCode and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          node scripts/bump-android-version.js
+          VERSION_CODE=$(node -p "require('./android-version.json').versionCode")
+          VERSION_NAME=$(node -p "require('./android-version.json').versionName")
+          echo "🔢 Building versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+          git add android-version.json
+          git commit -m "chore: bump versionCode to $VERSION_CODE [skip ci]"
+          git push
       - name: Build Angular application
         run: npm run build -- --configuration=production
       - name: Generate and sync Android project
@@ -52,6 +63,7 @@ jobs:
           sed -i "s/targetSdkVersion = .*/targetSdkVersion = $TARGET_SDK_VERSION/" ../variables.gradle
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "✅ Applied android-version.json: versionName=$VERSION_NAME versionCode=$VERSION_CODE"
       - name: Generate launcher and store icons from brand image
         run: |
           sudo apt-get update
@@ -170,15 +182,19 @@ jobs:
         run: |
           echo "📦 Android artifact summary"
           echo "==========================="
-          if [[ "${{ steps.keystore.outputs.available }}" == "true" && "${{ steps.sign_apk.outcome }}" == "success" ]]; then
+          if [[ -f "releases/${RELEASE_BASENAME}.apk" ]]; then
             APK_STATUS="✅ SIGNED APK created: releases/${RELEASE_BASENAME}.apk"
-          else
+          elif [[ -f "releases/${RELEASE_BASENAME}-unsigned.apk" ]]; then
             APK_STATUS="⚠️ UNSIGNED APK created: releases/${RELEASE_BASENAME}-unsigned.apk"
-          fi
-          if [[ "${{ steps.keystore.outputs.available }}" == "true" && "${{ steps.sign_aab.outcome }}" == "success" ]]; then
-            AAB_STATUS="✅ SIGNED AAB created: releases/${RELEASE_BASENAME}.aab"
           else
+            APK_STATUS="❌ APK was not created because an earlier build step failed"
+          fi
+          if [[ -f "releases/${RELEASE_BASENAME}.aab" ]]; then
+            AAB_STATUS="✅ SIGNED AAB created: releases/${RELEASE_BASENAME}.aab"
+          elif [[ -f "releases/${RELEASE_BASENAME}-unsigned.aab" ]]; then
             AAB_STATUS="⚠️ UNSIGNED AAB created: releases/${RELEASE_BASENAME}-unsigned.aab"
+          else
+            AAB_STATUS="❌ AAB was not created because an earlier build step failed"
           fi
           echo "$APK_STATUS"
           echo "$AAB_STATUS"
@@ -187,7 +203,11 @@ jobs:
             echo "- $APK_STATUS"
             echo "- $AAB_STATUS"
           } >> "$GITHUB_STEP_SUMMARY"
-          ls -lh releases/
+          if [[ -d releases ]]; then
+            ls -lh releases/
+          else
+            echo "ℹ️ The releases directory was not created."
+          fi
 
       - name: Remove decoded signing key
         if: always()

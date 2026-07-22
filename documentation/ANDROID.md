@@ -97,16 +97,17 @@ Copy the single-line content of `keystore.b64.txt` into `KEYSTORE_BASE64`. Store
 
 1. GitHub installs Node 24.16, Java 21, and the Android SDK.
 2. `npm ci` installs locked dependencies.
-3. Angular builds `dist/vault-nest/browser`.
-4. Capacitor generates and syncs the Android project.
-5. `scripts/patch-android.mjs` applies native backup/restore, biometric, intrusion-evidence, system-bar, and notification-icon patches.
-6. CI applies `android-version.json`, minimum SDK 24, and target SDK 35.
-7. ImageMagick generates launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
-8. Gradle creates unsigned release APK/AAB inputs.
-9. If all signing secrets exist, CI decodes the keystore, detects its type, signs, and verifies both artifacts.
-10. If no keystore is available or signing fails, CI copies clearly named unsigned artifacts.
-11. The console and GitHub job summary show the signed/unsigned result with emoji markers.
-12. APK, AAB, and Play Store icon artifacts are retained for 30 days.
+3. CI increments `android-version.json`, commits it with `[skip ci]`, and pushes it using the workflow token.
+4. Angular builds `dist/vault-nest/browser`.
+5. Capacitor generates and syncs the Android project using `com.actionanand.vaultnest.app`.
+6. `scripts/patch-android.mjs` reads the generated Capacitor app ID and applies native backup/restore, biometric, intrusion-evidence, system-bar, and notification-icon patches to the matching Java package.
+7. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 35.
+8. ImageMagick generates launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
+9. Gradle receives those version values as project properties and creates unsigned release APK/AAB inputs.
+10. If all signing secrets exist, CI decodes the keystore, detects its type, signs, and verifies both artifacts.
+11. If no keystore is available or signing fails, CI copies clearly named unsigned artifacts.
+12. The console and GitHub job summary report only artifacts that actually exist; an earlier failure is reported without failing the summary step itself.
+13. APK, AAB, and Play Store icon artifacts are retained for 30 days.
 
 Signed outputs:
 
