@@ -1,7 +1,15 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-const activityPath = resolve('android/app/src/main/java/app/vaultnest/mobile/MainActivity.java');
+const capacitorConfigPath = resolve('android/app/src/main/assets/capacitor.config.json');
+const capacitorConfig = JSON.parse(await readFile(capacitorConfigPath, 'utf8'));
+const appId = capacitorConfig.appId;
+
+if (typeof appId !== 'string' || !appId.trim()) {
+  throw new Error(`Android appId is missing from ${capacitorConfigPath}.`);
+}
+
+const activityPath = resolve('android/app/src/main/java', ...appId.split('.'), 'MainActivity.java');
 const manifestPath = resolve('android/app/src/main/AndroidManifest.xml');
 const gradlePath = resolve('android/app/build.gradle');
 const notificationIconPath = resolve('android/app/src/main/res/drawable/ic_stat_vault_nest.xml');
@@ -52,7 +60,7 @@ await writeFile(
   'utf8',
 );
 
-const source = `package com.actionanand.vaultnest.app;
+const source = `package ${appId};
 
 import android.app.Activity;
 import android.content.Intent;
