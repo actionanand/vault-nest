@@ -19,6 +19,18 @@ Do not use `any`, `ngClass`, `ngStyle`, `HostBinding`, `HostListener`, Local Sto
 - Do not use colour as the only status indicator.
 - Test 200% zoom, Android font scaling, light/dark contrast, reduced motion, AXE, and screen readers.
 
+## GitHub Pages deployment
+
+The Pages workflow runs for pushes to `main-github` and can also be started with
+**Run workflow**. It builds Angular with `/vault-nest/` as the base href, verifies
+the generated `index.html` and SPA `404.html`, uploads
+`dist/vault-nest/browser`, and deploys it through GitHub's native Pages action.
+
+In the repository, open **Settings -> Pages** and set **Source** to
+**GitHub Actions**. The workflow no longer publishes a `gh-pages` branch. A
+successful deployment reports its URL through the protected `github-pages`
+environment.
+
 ## Adding an item type
 
 1. Extend `VaultItemType`.
