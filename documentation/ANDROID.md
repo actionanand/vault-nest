@@ -107,14 +107,17 @@ Copy the single-line content of `keystore.b64.txt` into `KEYSTORE_BASE64`. Store
 10. If all signing secrets exist, CI decodes the keystore, detects its type, signs, and verifies both artifacts.
 11. If no keystore is available or signing fails, CI copies clearly named unsigned artifacts.
 12. The console and GitHub job summary report only artifacts that actually exist; an earlier failure is reported without failing the summary step itself.
-13. For a `main-android` build, CI commits the generated APK, AAB, and Play Store icon into the branch's `releases/` directory with `[skip ci]`.
+13. For a `main-android` build, CI removes older APK/AAB files, then commits the generated versioned APK, AAB, APK signature sidecar, and Play Store icon into the branch's `releases/` directory with `[skip ci]`.
 14. The same APK, AAB, and Play Store icon are also uploaded as downloadable workflow artifacts retained for 30 days.
 
 Signed outputs:
 
+Release filenames include `versionName` from `android-version.json` with dots
+replaced by hyphens. For example, `1.0.3` becomes:
+
 ```text
-releases/vault-nest-release.apk
-releases/vault-nest-release.aab
+releases/vault-nest-release-1-0-3.apk
+releases/vault-nest-release-1-0-3.aab
 ```
 
 After a successful `main-android` workflow, these files are visible directly in
@@ -125,8 +128,8 @@ signing log alone does not add files to the Git branch.
 Unsigned fallback outputs:
 
 ```text
-releases/vault-nest-release-unsigned.apk
-releases/vault-nest-release-unsigned.aab
+releases/vault-nest-release-1-0-3-unsigned.apk
+releases/vault-nest-release-1-0-3-unsigned.aab
 ```
 
 ## Android features

@@ -68,6 +68,9 @@ jobs:
           sed -i "s/targetSdkVersion = .*/targetSdkVersion = $TARGET_SDK_VERSION/" ../variables.gradle
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          RELEASE_VERSION_SUFFIX=${VERSION_NAME//./-}
+          echo "RELEASE_VERSION_SUFFIX=$RELEASE_VERSION_SUFFIX" >> "$GITHUB_ENV"
+          echo "RELEASE_FILE_BASENAME=${RELEASE_BASENAME}-${RELEASE_VERSION_SUFFIX}" >> "$GITHUB_ENV"
           echo "✅ Applied android-version.json: versionName=$VERSION_NAME versionCode=$VERSION_CODE"
       - name: Generate launcher and store icons from brand image
         run: |
@@ -91,6 +94,10 @@ jobs:
           done
       - name: Patch Android native shell
         run: node scripts/patch-android.mjs
+      - name: Clear previous Android release artifacts
+        run: |
+          mkdir -p releases
+          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig
       - name: Build unsigned release artifacts
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME"
@@ -139,8 +146,9 @@ jobs:
         run: |
           mkdir -p releases
           UNSIGNED_APK=$(find android/app/build -name '*-release-unsigned.apk' | head -1)
-          OUTPUT_APK="releases/${RELEASE_BASENAME}.apk"
+          OUTPUT_APK="releases/${RELEASE_FILE_BASENAME}.apk"
           BUILD_TOOLS_DIR="${ANDROID_HOME}/build-tools/$(ls "${ANDROID_HOME}/build-tools/" | sort -V | tail -1)"
+          rm -f "$OUTPUT_APK"
           "$BUILD_TOOLS_DIR/zipalign" -v 4 "$UNSIGNED_APK" "$OUTPUT_APK"
           "$BUILD_TOOLS_DIR/apksigner" sign --ks android/app/release-keystore.jks --ks-pass env:KEYSTORE_PASSWORD --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD "$OUTPUT_APK"
           "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$OUTPUT_APK"
@@ -150,10 +158,10 @@ jobs:
         if: steps.keystore.outputs.available != 'true' || steps.sign_apk.outcome == 'failure'
         run: |
           mkdir -p releases
-          rm -f "releases/${RELEASE_BASENAME}.apk"
+          rm -f "releases/${RELEASE_FILE_BASENAME}.apk" "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
           UNSIGNED_APK=$(find android/app/build -name '*-release-unsigned.apk' | head -1)
-          cp "$UNSIGNED_APK" "releases/${RELEASE_BASENAME}-unsigned.apk"
-          echo "⚠️ UNSIGNED APK created: releases/${RELEASE_BASENAME}-unsigned.apk"
+          cp "$UNSIGNED_APK" "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
+          echo "⚠️ UNSIGNED APK created: releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
 
       - name: Sign AAB
         id: sign_aab
@@ -166,7 +174,8 @@ jobs:
         run: |
           mkdir -p releases
           UNSIGNED_AAB=$(find android/app/build -name '*-release.aab' | head -1)
-          OUTPUT_AAB="releases/${RELEASE_BASENAME}.aab"
+          OUTPUT_AAB="releases/${RELEASE_FILE_BASENAME}.aab"
+          rm -f "$OUTPUT_AAB"
           STORE_PASS_FILE=$(mktemp)
           KEY_PASS_FILE=$(mktemp)
           trap 'rm -f "$STORE_PASS_FILE" "$KEY_PASS_FILE"' EXIT
@@ -180,27 +189,27 @@ jobs:
         if: steps.keystore.outputs.available != 'true' || steps.sign_aab.outcome == 'failure'
         run: |
           mkdir -p releases
-          rm -f "releases/${RELEASE_BASENAME}.aab"
+          rm -f "releases/${RELEASE_FILE_BASENAME}.aab" "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
           UNSIGNED_AAB=$(find android/app/build -name '*-release.aab' | head -1)
-          cp "$UNSIGNED_AAB" "releases/${RELEASE_BASENAME}-unsigned.aab"
-          echo "⚠️ UNSIGNED AAB created: releases/${RELEASE_BASENAME}-unsigned.aab"
+          cp "$UNSIGNED_AAB" "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
+          echo "⚠️ UNSIGNED AAB created: releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
 
       - name: Summarize Android artifacts
         if: always()
         run: |
           echo "📦 Android artifact summary"
           echo "==========================="
-          if [[ -f "releases/${RELEASE_BASENAME}.apk" ]]; then
-            APK_STATUS="✅ SIGNED APK created: releases/${RELEASE_BASENAME}.apk"
-          elif [[ -f "releases/${RELEASE_BASENAME}-unsigned.apk" ]]; then
-            APK_STATUS="⚠️ UNSIGNED APK created: releases/${RELEASE_BASENAME}-unsigned.apk"
+          if [[ -f "releases/${RELEASE_FILE_BASENAME}.apk" ]]; then
+            APK_STATUS="✅ SIGNED APK created: releases/${RELEASE_FILE_BASENAME}.apk"
+          elif [[ -f "releases/${RELEASE_FILE_BASENAME}-unsigned.apk" ]]; then
+            APK_STATUS="⚠️ UNSIGNED APK created: releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
           else
             APK_STATUS="❌ APK was not created because an earlier build step failed"
           fi
-          if [[ -f "releases/${RELEASE_BASENAME}.aab" ]]; then
-            AAB_STATUS="✅ SIGNED AAB created: releases/${RELEASE_BASENAME}.aab"
-          elif [[ -f "releases/${RELEASE_BASENAME}-unsigned.aab" ]]; then
-            AAB_STATUS="⚠️ UNSIGNED AAB created: releases/${RELEASE_BASENAME}-unsigned.aab"
+          if [[ -f "releases/${RELEASE_FILE_BASENAME}.aab" ]]; then
+            AAB_STATUS="✅ SIGNED AAB created: releases/${RELEASE_FILE_BASENAME}.aab"
+          elif [[ -f "releases/${RELEASE_FILE_BASENAME}-unsigned.aab" ]]; then
+            AAB_STATUS="⚠️ UNSIGNED AAB created: releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
           else
             AAB_STATUS="❌ AAB was not created because an earlier build step failed"
           fi
@@ -220,8 +229,8 @@ jobs:
       - name: Commit release files to main-android
         if: github.ref == 'refs/heads/main-android'
         run: |
-          test -s "releases/${RELEASE_BASENAME}.apk" || test -s "releases/${RELEASE_BASENAME}-unsigned.apk"
-          test -s "releases/${RELEASE_BASENAME}.aab" || test -s "releases/${RELEASE_BASENAME}-unsigned.aab"
+          test -s "releases/${RELEASE_FILE_BASENAME}.apk" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
+          test -s "releases/${RELEASE_FILE_BASENAME}.aab" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash

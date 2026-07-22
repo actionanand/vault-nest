@@ -18,9 +18,10 @@ Credential copy shortcuts require both `@capacitor/local-notifications` and `@ca
 4. Applies SDK and app versions.
 5. Generates launcher, round, foreground, notification, store, and branded splash images from `public/vault-nest.png`.
 6. Applies the native Android shell patch after asset generation so branded splash resources and dark-mode system-bar styles are final.
-7. Builds release APK and AAB files.
-8. Signs when repository secrets exist; otherwise uploads clearly named unsigned artifacts.
-9. Removes the decoded keystore and uploads artifacts for 30 days.
+7. Clears older APK/AAB files from `releases/` and writes the current artifacts with a versioned basename such as `vault-nest-release-1-0-3`.
+8. Builds release APK and AAB files.
+9. Signs when repository secrets exist; otherwise uploads clearly named unsigned artifacts.
+10. Removes the decoded keystore and uploads artifacts for 30 days.
 
 ## Required GitHub secrets
 
