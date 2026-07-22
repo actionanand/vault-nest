@@ -1,9 +1,13 @@
 import { Component, computed, input } from '@angular/core';
 import {
   LucideArchive,
+  LucideArrowDown,
   LucideArrowLeft,
+  LucideArrowUp,
+  LucideArrowUpToLine,
   LucideChevronDown,
   LucideClipboard,
+  LucideCamera,
   LucideCopy,
   LucideDice5,
   LucideDynamicIcon,
@@ -20,8 +24,11 @@ import {
   LucideMenu,
   LucideMoon,
   LucidePanelLeft,
+  LucidePencil,
   LucidePlus,
   LucideSearch,
+  LucideRotateCcw,
+  LucideShare2,
   LucideSettings,
   LucideShieldCheck,
   LucideSlidersHorizontal,
@@ -29,6 +36,7 @@ import {
   LucideStar,
   LucideSun,
   LucideTag,
+  LucideTags,
   LucideTrash2,
   LucideUserRound,
   LucideWifi,
@@ -38,9 +46,13 @@ import {
 
 const ICONS: Readonly<Record<string, LucideIconInput>> = {
   archive: LucideArchive,
+  arrow_down: LucideArrowDown,
+  arrow_up: LucideArrowUp,
+  notify_copy: LucideArrowUpToLine,
   back: LucideArrowLeft,
   chevron_down: LucideChevronDown,
   clipboard: LucideClipboard,
+  camera: LucideCamera,
   copy: LucideCopy,
   generator: LucideDice5,
   more: LucideEllipsisVertical,
@@ -56,8 +68,11 @@ const ICONS: Readonly<Record<string, LucideIconInput>> = {
   menu: LucideMenu,
   moon: LucideMoon,
   panel: LucidePanelLeft,
+  edit: LucidePencil,
   plus: LucidePlus,
   search: LucideSearch,
+  restore: LucideRotateCcw,
+  share: LucideShare2,
   settings: LucideSettings,
   shield: LucideShieldCheck,
   filter: LucideSlidersHorizontal,
@@ -65,6 +80,7 @@ const ICONS: Readonly<Record<string, LucideIconInput>> = {
   star: LucideStar,
   sun: LucideSun,
   label: LucideTag,
+  labels: LucideTags,
   trash: LucideTrash2,
   identity: LucideUserRound,
   wifi: LucideWifi,
@@ -87,6 +103,9 @@ const ICONS: Readonly<Record<string, LucideIconInput>> = {
       width: 100%;
       height: 100%;
       stroke-width: 1.8;
+    }
+    :host(.filled) svg {
+      fill: currentColor;
     }
   `,
 })

@@ -2,6 +2,8 @@ import { Service } from '@angular/core';
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
 import type {
   UnlockSecurityState,
+  EasyUnlockRecord,
+  VaultBackupSnapshot,
   VaultHeader,
   VaultItemRecord,
   VaultPreferences,
@@ -66,6 +68,20 @@ export class SqliteStorage extends StorageEngine {
   saveUnlockSecurityState(state: UnlockSecurityState): Promise<void> {
     return this.saveMetadata('unlock-security', state);
   }
+  getEasyUnlock(): Promise<EasyUnlockRecord | null> {
+    return this.metadata<EasyUnlockRecord>('easy-unlock');
+  }
+  saveEasyUnlock(record: EasyUnlockRecord): Promise<void> {
+    return this.saveMetadata('easy-unlock', record);
+  }
+  async deleteEasyUnlock(): Promise<void> {
+    await CapacitorSQLite.run({
+      database: DATABASE,
+      statement: 'DELETE FROM vault_metadata WHERE id = ?',
+      values: ['easy-unlock'],
+      transaction: false,
+    });
+  }
   async clearVaultData(): Promise<void> {
     await CapacitorSQLite.run({
       database: DATABASE,
@@ -79,6 +95,43 @@ export class SqliteStorage extends StorageEngine {
       database: DATABASE,
       transaction: true,
       statements: 'DELETE FROM vault_items; DELETE FROM vault_metadata;',
+    });
+  }
+  async replaceFromBackup(snapshot: VaultBackupSnapshot): Promise<void> {
+    const itemStatements = snapshot.items.map((item) => ({
+      statement: 'INSERT INTO vault_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      values: [
+        item.id,
+        item.type,
+        item.favourite ? 1 : 0,
+        item.archived ? 1 : 0,
+        item.deletedAt ?? null,
+        item.expiresAt ?? null,
+        item.createdAt,
+        item.updatedAt,
+        item.encryptedPayload,
+      ],
+    }));
+    await CapacitorSQLite.executeSet({
+      database: DATABASE,
+      transaction: true,
+      set: [
+        { statement: 'DELETE FROM vault_items', values: [] },
+        { statement: 'DELETE FROM vault_metadata', values: [] },
+        {
+          statement: 'INSERT INTO vault_metadata VALUES (?, ?)',
+          values: ['primary', JSON.stringify(snapshot.header)],
+        },
+        {
+          statement: 'INSERT INTO vault_metadata VALUES (?, ?)',
+          values: ['preferences', JSON.stringify(snapshot.preferences)],
+        },
+        {
+          statement: 'INSERT INTO vault_metadata VALUES (?, ?)',
+          values: ['unlock-security', JSON.stringify(snapshot.unlockSecurity)],
+        },
+        ...itemStatements,
+      ],
     });
   }
   async listItems(): Promise<readonly VaultItemRecord[]> {

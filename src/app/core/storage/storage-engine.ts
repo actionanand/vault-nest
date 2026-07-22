@@ -1,5 +1,7 @@
 import type {
   UnlockSecurityState,
+  EasyUnlockRecord,
+  VaultBackupSnapshot,
   VaultHeader,
   VaultItemRecord,
   VaultPreferences,
@@ -16,6 +18,10 @@ export abstract class StorageEngine {
   abstract savePreferences(preferences: VaultPreferences): Promise<void>;
   abstract getUnlockSecurityState(): Promise<UnlockSecurityState>;
   abstract saveUnlockSecurityState(state: UnlockSecurityState): Promise<void>;
+  abstract getEasyUnlock(): Promise<EasyUnlockRecord | null>;
+  abstract saveEasyUnlock(record: EasyUnlockRecord): Promise<void>;
+  abstract deleteEasyUnlock(): Promise<void>;
   abstract clearVaultData(): Promise<void>;
+  abstract replaceFromBackup(snapshot: VaultBackupSnapshot): Promise<void>;
   abstract clearAll(): Promise<void>;
 }

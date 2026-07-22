@@ -157,6 +157,37 @@
   gap: 0.6rem;
   margin-top: 1rem;
 }
+.evidence-dialog {
+  width: min(100%, 38rem);
+  max-height: min(90dvh, 48rem);
+  overflow: auto;
+}
+.evidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.evidence-list button {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+.evidence-list button.active {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.evidence-image {
+  width: 100%;
+  max-height: 24rem;
+  border-radius: 0.85rem;
+  object-fit: contain;
+  background: #000;
+}
+.evidence-actions {
+  flex-wrap: wrap;
+}
 .danger-button {
   display: inline-flex;
   min-height: 2.8rem;
@@ -191,14 +222,22 @@
   }
   .drawer {
     position: fixed;
-    left: 0;
-    top: 0;
+    left: 0.65rem;
+    top: calc(env(safe-area-inset-top) + 0.65rem);
+    bottom: max(0.65rem, env(safe-area-inset-bottom));
+    height: auto;
     width: min(88vw, 19rem);
+    border: 1px solid var(--border);
+    border-radius: 1.35rem;
+    box-shadow: none;
+    visibility: hidden;
     transform: translateX(-105%);
     transition: transform 0.22s ease;
   }
   .drawer-is-open .drawer {
     transform: none;
+    visibility: visible;
+    box-shadow: 0 1.5rem 4rem #07101655;
   }
   .drawer-close,
   .scrim {

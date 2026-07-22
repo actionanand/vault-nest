@@ -1,0 +1,238 @@
+<article class="details">
+  <div class="action-bar" aria-label="Credential actions">
+    @if (notifications.isAndroid()) {
+      <button type="button" class="action-button" (click)="sendNotifications()">
+        <app-icon name="notify_copy" /><span>Send to notifications</span>
+      </button>
+    }
+    <button type="button" class="action-button" (click)="openLabels()">
+      <app-icon name="labels" /><span>Set labels</span>
+    </button>
+    @if (item().deletedAt) {
+      <button type="button" class="action-button" (click)="restoreFromTrash()">
+        <app-icon name="restore" /><span>Restore</span>
+      </button>
+      <button type="button" class="action-button danger" (click)="deleteDialogOpen.set(true)">
+        <app-icon name="trash" /><span>Delete forever</span>
+      </button>
+    } @else {
+      @if (item().archived) {
+        <button type="button" class="action-button" (click)="openUnarchiveConfirmation()">
+          <app-icon name="restore" /><span>Unarchive</span>
+        </button>
+      }
+      <button type="button" class="action-button danger" (click)="deleteDialogOpen.set(true)">
+        <app-icon name="trash" /><span>Delete</span>
+      </button>
+    }
+  </div>
+
+  <header class="detail-header">
+    <span class="hero-icon"><app-icon [name]="iconName(item())" /></span>
+    <div>
+      <p>{{ item().type.replace('_', ' ') }}</p>
+      <h2>{{ item().title }}</h2>
+    </div>
+    <div class="headline-actions">
+      <button
+        class="icon-button star-button"
+        [class.favourited]="item().favourite"
+        type="button"
+        (click)="toggleFavourite()"
+        [attr.aria-label]="item().favourite ? 'Remove from favourites' : 'Add to favourites'"
+      >
+        <app-icon
+          [name]="item().favourite ? 'star' : 'favourite'"
+          [class.filled]="item().favourite"
+        />
+      </button>
+      <div class="menu-wrap">
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="More credential actions"
+          [attr.aria-expanded]="menuOpen()"
+          (click)="menuOpen.set(!menuOpen())"
+        >
+          <app-icon name="more" />
+        </button>
+        @if (menuOpen()) {
+          <div class="overflow-menu" role="menu">
+            <button type="button" role="menuitem" (click)="openShare()">
+              <app-icon name="share" />Share
+            </button>
+            <button type="button" role="menuitem" (click)="duplicate()">
+              <app-icon name="copy" />Duplicate
+            </button>
+            <button type="button" role="menuitem" (click)="saveAsTemplate()">
+              <app-icon name="custom" />Save as template
+            </button>
+            @if (!item().deletedAt) {
+              @if (item().archived) {
+                <button type="button" role="menuitem" (click)="openUnarchiveConfirmation()">
+                  <app-icon name="restore" />Restore from archive
+                </button>
+              } @else {
+                <button type="button" role="menuitem" (click)="openArchiveConfirmation()">
+                  <app-icon name="archive" />Archive
+                </button>
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </header>
+
+  <div class="labels">
+    @for (label of item().labels; track label) {
+      <span>{{ label }}</span>
+    }
+  </div>
+  <div class="field-list">
+    @for (field of item().fields; track field.id) {
+      <app-secret-field [field]="field" />
+    }
+  </div>
+  @if (item().notes) {
+    <section class="notes">
+      <h3>Notes</h3>
+      <p>{{ item().notes }}</p>
+    </section>
+  }
+  <dl class="metadata">
+    <div>
+      <dt>Created</dt>
+      <dd>{{ item().createdAt.slice(0, 10) }}</dd>
+    </div>
+    <div>
+      <dt>Updated</dt>
+      <dd>{{ item().updatedAt.slice(0, 10) }}</dd>
+    </div>
+  </dl>
+  <a class="secondary-button edit-button" [routerLink]="['/vault/edit', item().id]">
+    <app-icon name="edit" />Edit item
+  </a>
+</article>
+
+@if (labelDialogOpen()) {
+  <div class="dialog-backdrop" role="presentation">
+    <section class="label-dialog" role="dialog" aria-modal="true" aria-labelledby="labels-title">
+      <div>
+        <h2 id="labels-title">Set labels</h2>
+        <p>Select existing labels or enter new comma-separated labels.</p>
+      </div>
+      @if (availableLabels().length) {
+        <div class="label-options">
+          @for (label of availableLabels(); track label) {
+            <label
+              ><app-icon name="label" /><span>{{ label }}</span
+              ><input
+                type="checkbox"
+                [checked]="labelSelected(label)"
+                (change)="toggleLabel(label)"
+            /></label>
+          }
+        </div>
+      }
+      <label class="custom-label"
+        >Labels<input type="text" [formControl]="labelControl" placeholder="Work, Personal"
+      /></label>
+      <div class="dialog-actions">
+        <button class="secondary-button" type="button" (click)="labelDialogOpen.set(false)">
+          Cancel</button
+        ><button class="primary-button" type="button" (click)="saveLabels()">Save labels</button>
+      </div>
+    </section>
+  </div>
+}
+
+<app-confirmation-dialog
+  [open]="deleteDialogOpen()"
+  dialogId="delete-vault-item"
+  [title]="item().deletedAt ? 'Delete this item permanently?' : 'Move this item to trash?'"
+  [message]="
+    item().deletedAt
+      ? item().title + ' will be permanently deleted and cannot be recovered.'
+      : item().title +
+        ' will be hidden from normal lists and can be restored from Trash until its retention period expires.'
+  "
+  [acknowledgementLabel]="
+    item().deletedAt
+      ? 'I understand that this item cannot be recovered.'
+      : 'I understand that this item will be moved to Trash.'
+  "
+  [confirmLabel]="item().deletedAt ? 'Delete permanently' : 'Move to trash'"
+  (cancelled)="deleteDialogOpen.set(false)"
+  (confirmed)="item().deletedAt ? deletePermanently() : moveToTrash()"
+/>
+
+<app-confirmation-dialog
+  [open]="unarchiveDialogOpen()"
+  dialogId="unarchive-vault-item"
+  title="Restore this item from Archive?"
+  [message]="item().title + ' will return to All items.'"
+  acknowledgementLabel="I understand that this item will return to the active vault."
+  confirmLabel="Restore item"
+  iconName="restore"
+  (cancelled)="unarchiveDialogOpen.set(false)"
+  (confirmed)="restoreFromArchive()"
+/>
+
+<app-confirmation-dialog
+  [open]="archiveDialogOpen()"
+  dialogId="archive-vault-item"
+  title="Archive this item?"
+  [message]="item().title + ' will leave All items and remain available from the Archive section.'"
+  acknowledgementLabel="I understand that this item will move to Archive."
+  confirmLabel="Archive item"
+  iconName="archive"
+  (cancelled)="archiveDialogOpen.set(false)"
+  (confirmed)="archive()"
+/>
+
+@if (shareDialogOpen()) {
+  <div class="dialog-backdrop" role="presentation">
+    <section class="label-dialog" role="dialog" aria-modal="true" aria-labelledby="share-title">
+      <div>
+        <h2 id="share-title">Share item details</h2>
+        <p>Choose whether passwords and other sensitive fields should be included.</p>
+      </div>
+      <label class="share-sensitive">
+        <input
+          type="checkbox"
+          [checked]="shareSensitive()"
+          (change)="shareSensitive.set(!shareSensitive())"
+        />
+        <span
+          ><strong>Include sensitive information</strong
+          ><small
+            >Passwords, PINs, secrets, OTP seeds, hidden fields, and notes will be shared as
+            readable text.</small
+          ></span
+        >
+      </label>
+      @if (shareSensitive()) {
+        <p class="share-warning" role="alert">
+          <app-icon name="shield" />Only continue if you trust the destination application and
+          recipient.
+        </p>
+      }
+      <div class="dialog-actions share-actions">
+        <button class="secondary-button" type="button" (click)="shareDialogOpen.set(false)">
+          Cancel
+        </button>
+        <button class="secondary-button" type="button" (click)="copyShareDetails()">
+          <app-icon name="copy" />Copy
+        </button>
+        <button class="primary-button" type="button" (click)="shareDetails()">
+          <app-icon name="share" />Share
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
+@if (message() || notifications.lastMessage()) {
+  <span class="toast" role="status">{{ message() || notifications.lastMessage() }}</span>
+}

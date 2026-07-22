@@ -1,6 +1,8 @@
 import { Service } from '@angular/core';
 import type {
   UnlockSecurityState,
+  EasyUnlockRecord,
+  VaultBackupSnapshot,
   VaultHeader,
   VaultItemRecord,
   VaultPreferences,
@@ -73,8 +75,36 @@ export class IndexedDbStorage extends StorageEngine {
   saveUnlockSecurityState(state: UnlockSecurityState): Promise<void> {
     return this.put('metadata', state);
   }
+  getEasyUnlock(): Promise<EasyUnlockRecord | null> {
+    return this.get<EasyUnlockRecord>('metadata', 'easy-unlock');
+  }
+  saveEasyUnlock(record: EasyUnlockRecord): Promise<void> {
+    return this.put('metadata', record);
+  }
+  deleteEasyUnlock(): Promise<void> {
+    return this.remove('metadata', 'easy-unlock');
+  }
   clearVaultData(): Promise<void> {
     return this.request(this.store('items', 'readwrite').clear()).then(() => undefined);
+  }
+  replaceFromBackup(snapshot: VaultBackupSnapshot): Promise<void> {
+    if (!this.database) throw new Error('Storage has not been initialised.');
+    return new Promise((resolve, reject) => {
+      const transaction = this.database!.transaction(['metadata', 'items'], 'readwrite');
+      const metadata = transaction.objectStore('metadata');
+      const items = transaction.objectStore('items');
+      metadata.clear();
+      items.clear();
+      metadata.put(snapshot.header);
+      metadata.put({ id: 'preferences', value: snapshot.preferences });
+      metadata.put(snapshot.unlockSecurity);
+      snapshot.items.forEach((item) => items.put(item));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error('The backup could not replace IndexedDB.'));
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error('Restoring the backup was aborted.'));
+    });
   }
   clearAll(): Promise<void> {
     if (!this.database) throw new Error('Storage has not been initialised.');

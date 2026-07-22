@@ -19,11 +19,11 @@
     <nav>
       <p class="nav-label">Vault</p>
       <a routerLink="/vault/all" routerLinkActive="active" (click)="closeDrawer()"
-        ><app-icon name="home" /><span>All items</span><b>{{ vault.items().length }}</b></a
+        ><app-icon name="home" /><span>All items</span><b>{{ vault.activeItems().length }}</b></a
       >
       <a routerLink="/vault/favourites" routerLinkActive="active" (click)="closeDrawer()"
         ><app-icon name="favourite" /><span>Favourites</span
-        ><b>{{ vault.favourites().length }}</b></a
+        ><b>{{ vault.favouriteItems().length }}</b></a
       >
       <a routerLink="/vault/generator" routerLinkActive="active" (click)="closeDrawer()"
         ><app-icon name="generator" /><span>Password generator</span></a
@@ -42,6 +42,12 @@
         ><app-icon name="wifi" /><span>Wi-Fi credentials</span></a
       >
       <p class="nav-label">Manage</p>
+      <a routerLink="/vault/archive" routerLinkActive="active" (click)="closeDrawer()"
+        ><app-icon name="archive" /><span>Archive</span><b>{{ vault.archivedItems().length }}</b></a
+      >
+      <a routerLink="/vault/trash" routerLinkActive="active" (click)="closeDrawer()"
+        ><app-icon name="trash" /><span>Trash</span><b>{{ vault.trashedItems().length }}</b></a
+      >
       <a routerLink="/vault/settings" routerLinkActive="active" (click)="closeDrawer()"
         ><app-icon name="settings" /><span>Settings</span></a
       >
@@ -91,6 +97,71 @@
       ><app-icon name="settings" /><span>Settings</span></a
     >
   </nav>
+  @if (evidenceOpen()) {
+    <div class="dialog-backdrop" role="presentation">
+      <section
+        class="remove-dialog evidence-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="intrusion-evidence-title"
+      >
+        <div class="dialog-icon"><app-icon name="camera" /></div>
+        <div>
+          <h2 id="intrusion-evidence-title">Intrusion evidence captured</h2>
+          <p>
+            Vault Nest recorded front-camera evidence after three continuous failed unlock attempts.
+            Attempted passwords were not stored.
+          </p>
+        </div>
+        <div class="evidence-list" aria-label="Captured intrusion evidence">
+          @for (entry of intrusionEvidence.entries(); track entry.id) {
+            <button
+              type="button"
+              [class.active]="selectedEvidence()?.id === entry.id"
+              (click)="selectEvidence(entry)"
+            >
+              {{ entry.capturedAt | date: 'medium' }}
+            </button>
+          }
+        </div>
+        @if (intrusionEvidence.selectedImage()) {
+          <img
+            class="evidence-image"
+            [src]="intrusionEvidence.selectedImage()"
+            alt="Front-camera intrusion evidence"
+          />
+        }
+        <div class="dialog-actions evidence-actions">
+          <button class="secondary-button" type="button" (click)="closeEvidence()">
+            Keep and close
+          </button>
+          @if (selectedEvidence(); as entry) {
+            <button
+              class="secondary-button"
+              type="button"
+              (click)="intrusionEvidence.download(entry)"
+            >
+              Download
+            </button>
+            <button class="danger-button" type="button" (click)="evidenceDeleteOpen.set(true)">
+              <app-icon name="trash" />Delete
+            </button>
+          }
+        </div>
+      </section>
+    </div>
+  }
+  <app-confirmation-dialog
+    [open]="evidenceDeleteOpen()"
+    dialogId="delete-intrusion-evidence"
+    title="Delete this intrusion photo?"
+    message="This encrypted photo and its timestamp will be permanently removed from this device."
+    acknowledgementLabel="I understand that this intrusion evidence cannot be recovered."
+    confirmLabel="Delete evidence"
+    iconName="trash"
+    (cancelled)="evidenceDeleteOpen.set(false)"
+    (confirmed)="deleteSelectedEvidence()"
+  />
   @if (removeAccountOpen()) {
     <div class="dialog-backdrop" role="presentation">
       <section

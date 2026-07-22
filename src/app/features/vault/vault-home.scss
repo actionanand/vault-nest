@@ -13,6 +13,13 @@
   align-items: center;
   justify-content: space-between;
 }
+.header-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+.danger-filter {
+  color: var(--danger);
+}
 .eyebrow {
   margin: 0 0 0.2rem;
   color: var(--accent-strong);
@@ -53,9 +60,32 @@ h1 {
 }
 .filter-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
-  overflow-x: auto;
   padding-bottom: 0.75rem;
+}
+.filter-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.sort-control select {
+  min-height: 2rem;
+  padding: 0.3rem 1.8rem 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.7rem;
 }
 .filter-row button {
   min-height: 2rem;
@@ -284,5 +314,18 @@ h1 {
   }
   .pane-header {
     margin-top: 0.25rem;
+  }
+  .filter-panel {
+    display: none;
+    padding: 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+    background: var(--surface);
+  }
+  .filter-panel.open {
+    display: grid;
+  }
+  .sort-control {
+    justify-content: space-between;
   }
 }

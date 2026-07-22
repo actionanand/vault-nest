@@ -41,6 +41,7 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+          node scripts/patch-android.mjs
       - name: Apply SDK and release versions
         working-directory: android/app
         run: |

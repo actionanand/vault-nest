@@ -38,6 +38,7 @@ export interface VaultItem {
   readonly labels: readonly string[];
   readonly favourite: boolean;
   readonly archived: boolean;
+  readonly template?: boolean;
   readonly deletedAt?: string;
   readonly expiresAt?: string;
   readonly createdAt: string;
@@ -75,6 +76,7 @@ export interface VaultHeader {
 }
 
 export type AppTheme = 'LIGHT' | 'DARK' | 'AUTOMATIC';
+export type EasyUnlockMode = 'DISABLED' | 'FIRST_4' | 'LAST_4';
 export interface VaultPreferences {
   readonly theme: AppTheme;
   readonly autoLockMinutes: number;
@@ -84,6 +86,9 @@ export interface VaultPreferences {
   readonly screenshotScope: 'ALL' | 'SENSITIVE';
   readonly historyRetention: number;
   readonly trashRetentionDays: number;
+  readonly easyUnlockMode: EasyUnlockMode;
+  readonly biometricEnabled: boolean;
+  readonly intrusionEvidenceEnabled: boolean;
 }
 
 export const DEFAULT_PREFERENCES: VaultPreferences = {
@@ -95,9 +100,37 @@ export const DEFAULT_PREFERENCES: VaultPreferences = {
   screenshotScope: 'SENSITIVE',
   historyRetention: 10,
   trashRetentionDays: 30,
+  easyUnlockMode: 'DISABLED',
+  biometricEnabled: false,
+  intrusionEvidenceEnabled: false,
 };
+
+export interface EasyUnlockRecord {
+  readonly id: 'easy-unlock';
+  readonly version: 1;
+  readonly mode: Exclude<EasyUnlockMode, 'DISABLED'>;
+  readonly salt: string;
+  readonly iterations: number;
+  readonly wrappedVaultKey: EncryptedEnvelope;
+}
 
 export interface UnlockSecurityState {
   readonly id: 'unlock-security';
   readonly failedAttempts: number;
+  readonly consecutiveFailures?: number;
+  readonly lastFailedAt?: string;
+  readonly cooldownLevel?: number;
+  readonly cooldownUntil?: string;
+  readonly easyVerificationRequired?: boolean;
+  readonly easyVerificationAttemptsRemaining?: number;
+}
+
+export interface VaultBackupSnapshot {
+  readonly format: 'vault-nest-snapshot';
+  readonly version: 1;
+  readonly createdAt: string;
+  readonly header: VaultHeader;
+  readonly preferences: VaultPreferences;
+  readonly unlockSecurity: UnlockSecurityState;
+  readonly items: readonly VaultItemRecord[];
 }

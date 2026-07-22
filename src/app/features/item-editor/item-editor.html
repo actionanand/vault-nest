@@ -26,7 +26,10 @@
       <div class="section-title">
         <div>
           <h2>Fields</h2>
-          <p>Sensitive values are hidden by default.</p>
+          <p>
+            Sensitive values are hidden by default. Use the up and down arrows to change the order
+            in which fields appear.
+          </p>
         </div>
         <button class="quiet-button" type="button" (click)="addField()">
           <app-icon name="plus" />Add another field
@@ -65,16 +68,18 @@
               (click)="move(index, -1)"
               [disabled]="index === 0"
               aria-label="Move field up"
+              title="Move this field one position up"
             >
-              ↑</button
+              <app-icon name="arrow_up" /></button
             ><button
               class="icon-button"
               type="button"
               (click)="move(index, 1)"
               [disabled]="index === fields.length - 1"
               aria-label="Move field down"
+              title="Move this field one position down"
             >
-              ↓</button
+              <app-icon name="arrow_down" /></button
             ><button
               class="icon-button"
               type="button"

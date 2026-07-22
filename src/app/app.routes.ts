@@ -35,6 +35,18 @@ export const routes: Routes = [
           import('./features/vault/vault-home').then((module) => module.VaultHome),
       },
       {
+        path: 'archive',
+        data: { scope: 'ARCHIVE' },
+        loadComponent: () =>
+          import('./features/vault/vault-home').then((module) => module.VaultHome),
+      },
+      {
+        path: 'trash',
+        data: { scope: 'TRASH' },
+        loadComponent: () =>
+          import('./features/vault/vault-home').then((module) => module.VaultHome),
+      },
+      {
         path: 'generator',
         loadComponent: () =>
           import('./features/generator/generator').then((module) => module.Generator),
@@ -45,6 +57,11 @@ export const routes: Routes = [
           import('./features/settings/settings').then((module) => module.Settings),
       },
       {
+        path: 'new/template/:id',
+        loadComponent: () =>
+          import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
+      },
+      {
         path: 'new/:type',
         loadComponent: () =>
           import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
@@ -53,6 +70,13 @@ export const routes: Routes = [
         path: 'edit/:id',
         loadComponent: () =>
           import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
+      },
+      {
+        path: 'item/:id',
+        loadComponent: () =>
+          import('./features/item-details/item-details-page').then(
+            (module) => module.ItemDetailsPage,
+          ),
       },
     ],
   },

@@ -14,7 +14,7 @@ import { AppIcon } from './app-icon';
           [attr.aria-labelledby]="dialogId() + '-title'"
           [attr.aria-describedby]="dialogId() + '-description'"
         >
-          <span class="icon"><app-icon name="trash" /></span>
+          <span class="icon"><app-icon [name]="iconName()" /></span>
           <div>
             <h2 [id]="dialogId() + '-title'">{{ title() }}</h2>
             <p [id]="dialogId() + '-description'">{{ message() }}</p>
@@ -37,7 +37,7 @@ import { AppIcon } from './app-icon';
               [disabled]="!acknowledged() || busy()"
               (click)="confirm()"
             >
-              <app-icon name="trash" />
+              <app-icon [name]="iconName()" />
               {{ busy() ? busyLabel() : confirmLabel() }}
             </button>
           </div>
@@ -147,6 +147,7 @@ export class ConfirmationDialog {
   readonly cancelLabel = input('Cancel');
   readonly busyLabel = input('Deleting…');
   readonly busy = input(false);
+  readonly iconName = input('trash');
   readonly confirmed = output<void>();
   readonly cancelled = output<void>();
   readonly acknowledged = signal(false);

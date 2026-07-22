@@ -31,6 +31,7 @@ SQLite database encryption is not treated as the security boundary. Sensitive fi
 The storage abstraction deliberately exposes two scopes:
 
 - `clearVaultData()` deletes all encrypted item records but preserves the vault header, preferences, and unlock-security state.
+- `replaceFromBackup()` atomically replaces the header, preferences, unlock-security state, and encrypted item records. IndexedDB uses one multi-store transaction; Android uses one SQLite `executeSet` transaction.
 - `clearAll()` deletes item records and all metadata, including the wrapped vault key. It is used only for confirmed account removal or an explicitly configured failed-attempt limit.
 
 Both Android operations execute inside SQLite database operations. The IndexedDB account-removal operation clears the `items` and `metadata` stores in one read-write transaction.

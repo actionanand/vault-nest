@@ -1,5 +1,6 @@
-import { Component, input, signal } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
 import type { VaultField } from '../../core/models/vault.models';
+import { ClipboardService } from '../../core/services/clipboard.service';
 import { AppIcon } from './app-icon';
 
 @Component({
@@ -74,12 +75,13 @@ import { AppIcon } from './app-icon';
   `,
 })
 export class SecretField {
+  private readonly clipboard = inject(ClipboardService);
   readonly field = input.required<VaultField>();
   readonly revealed = signal(false);
   readonly message = signal('');
   async copy(): Promise<void> {
-    await navigator.clipboard.writeText(this.field().value);
-    this.message.set(`${this.field().label} copied`);
+    await this.clipboard.copy(this.field().value, this.field().label);
+    this.message.set(`${this.field().label} copied. Clipboard clears in 5 minutes.`);
     setTimeout(() => this.message.set(''), 1800);
   }
 }

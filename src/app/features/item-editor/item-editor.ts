@@ -29,7 +29,9 @@ export class ItemEditor implements OnInit {
   private readonly router = inject(Router);
   private readonly vault = inject(VaultStore);
   existing: VaultItem | null = null;
-  readonly type = this.readType(this.route.snapshot.paramMap.get('type'));
+  private readonly creatingFromTemplate =
+    this.route.snapshot.routeConfig?.path === 'new/template/:id';
+  type = this.readType(this.route.snapshot.paramMap.get('type'));
   readonly form = new FormGroup({
     title: new FormControl('', {
       nonNullable: true,
@@ -48,8 +50,14 @@ export class ItemEditor implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       if (!this.vault.items().length) await this.vault.load();
-      this.existing = this.vault.items().find((item) => item.id === id) ?? null;
-      if (this.existing) this.patch(this.existing);
+      const source = this.vault.items().find((item) => item.id === id) ?? null;
+      if (this.creatingFromTemplate && source?.template) {
+        this.type = source.type;
+        this.patchTemplate(source);
+      } else {
+        this.existing = source;
+        if (this.existing) this.patch(this.existing);
+      }
     } else
       this.defaultFields(this.type).forEach((field) => this.fields.push(this.createField(field)));
   }
@@ -88,6 +96,7 @@ export class ItemEditor implements OnInit {
         .filter(Boolean),
       favourite: value.favourite,
       archived: this.existing?.archived ?? false,
+      template: false,
       deletedAt: this.existing?.deletedAt,
       expiresAt: value.expiresAt || undefined,
       createdAt: this.existing?.createdAt ?? now,
@@ -134,6 +143,24 @@ export class ItemEditor implements OnInit {
       expiresAt: item.expiresAt ?? '',
     });
     item.fields.forEach((field) => this.fields.push(this.createField(field)));
+  }
+  private patchTemplate(item: VaultItem): void {
+    this.form.patchValue({
+      title: '',
+      notes: '',
+      labels: item.labels.join(', '),
+      favourite: false,
+      expiresAt: '',
+    });
+    item.fields.forEach((field) =>
+      this.fields.push(
+        this.createField({
+          ...field,
+          id: crypto.randomUUID(),
+          value: '',
+        }),
+      ),
+    );
   }
   private readType(value: string | null): VaultItemType {
     return ['LOGIN', 'NOTE', 'IDENTITY', 'WIFI', 'CUSTOM'].includes(value ?? '')

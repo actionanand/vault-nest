@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { App } from './app';
 import { AuthStore } from './core/services/auth.store';
 import { ThemeService } from './core/services/theme.service';
+import { CredentialNotificationService } from './core/services/credential-notification.service';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -15,6 +16,10 @@ describe('App', () => {
           useValue: { initialise: () => Promise.resolve(), status: () => 'LOCKED' },
         },
         { provide: ThemeService, useValue: { initialise: () => Promise.resolve() } },
+        {
+          provide: CredentialNotificationService,
+          useValue: { initialise: () => Promise.resolve() },
+        },
       ],
     }).compileComponents();
   });

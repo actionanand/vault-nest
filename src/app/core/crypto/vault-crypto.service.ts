@@ -1,5 +1,10 @@
 import { Service } from '@angular/core';
-import type { EncryptedEnvelope, VaultHeader } from '../models/vault.models';
+import type {
+  EasyUnlockRecord,
+  EncryptedEnvelope,
+  EasyUnlockMode,
+  VaultHeader,
+} from '../models/vault.models';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -14,7 +19,7 @@ export class VaultCryptoService {
     const salt = crypto.getRandomValues(new Uint8Array(32));
     const wrappingKey = await this.deriveKey(password, salt, DEFAULT_ITERATIONS);
     const rawVaultKey = crypto.getRandomValues(new Uint8Array(32));
-    const key = await crypto.subtle.importKey('raw', rawVaultKey, 'AES-GCM', false, [
+    const key = await crypto.subtle.importKey('raw', rawVaultKey, 'AES-GCM', true, [
       'encrypt',
       'decrypt',
     ]);
@@ -42,7 +47,47 @@ export class VaultCryptoService {
     );
     const raw = await this.decryptBytes(header.wrappedVaultKey, wrappingKey, 'vault-key:v1');
     try {
-      return await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+      return await this.importVaultKey(raw);
+    } finally {
+      raw.fill(0);
+    }
+  }
+
+  async exportVaultKey(key: CryptoKey): Promise<Uint8Array<ArrayBuffer>> {
+    return new Uint8Array(await crypto.subtle.exportKey('raw', key));
+  }
+
+  importVaultKey(raw: BufferSource): Promise<CryptoKey> {
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', true, ['encrypt', 'decrypt']);
+  }
+
+  async createEasyUnlock(
+    key: CryptoKey,
+    code: string,
+    mode: Exclude<EasyUnlockMode, 'DISABLED'>,
+  ): Promise<EasyUnlockRecord> {
+    const salt = crypto.getRandomValues(new Uint8Array(32));
+    const wrappingKey = await this.deriveKey(code, salt, DEFAULT_ITERATIONS);
+    const raw = await this.exportVaultKey(key);
+    try {
+      return {
+        id: 'easy-unlock',
+        version: 1,
+        mode,
+        salt: this.toBase64(salt),
+        iterations: DEFAULT_ITERATIONS,
+        wrappedVaultKey: await this.encryptBytes(raw, wrappingKey, 'easy-unlock:v1'),
+      };
+    } finally {
+      raw.fill(0);
+    }
+  }
+
+  async unlockEasy(code: string, record: EasyUnlockRecord): Promise<CryptoKey> {
+    const wrappingKey = await this.deriveKey(code, this.fromBase64(record.salt), record.iterations);
+    const raw = await this.decryptBytes(record.wrappedVaultKey, wrappingKey, 'easy-unlock:v1');
+    try {
+      return await this.importVaultKey(raw);
     } finally {
       raw.fill(0);
     }

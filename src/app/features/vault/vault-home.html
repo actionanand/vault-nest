@@ -6,7 +6,24 @@
         <h1>{{ title }}</h1>
       </div>
       <div class="header-actions">
-        <button class="icon-button" type="button" aria-label="Filter and sort">
+        @if (scope === 'TRASH' && vault.trashedItems().length) {
+          <button
+            class="icon-button danger-filter"
+            type="button"
+            aria-label="Clean trash"
+            (click)="cleanTrashOpen.set(true)"
+          >
+            <app-icon name="trash" />
+          </button>
+        }
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="Filter and sort"
+          aria-controls="vault-filters"
+          [attr.aria-expanded]="filterOpen()"
+          (click)="filterOpen.set(!filterOpen())"
+        >
           <app-icon name="filter" />
         </button>
       </div>
@@ -19,125 +36,78 @@
         [value]="vault.query()"
         (input)="setQuery($event)"
     /></label>
-    <div class="filter-row" aria-label="Item type filters">
-      <button
-        type="button"
-        [class.active]="vault.typeFilter() === 'ALL'"
-        (click)="vault.typeFilter.set('ALL')"
+    <div id="vault-filters" class="filter-panel" [class.open]="filterOpen()">
+      <div class="filter-row" aria-label="Item type filters">
+        <button
+          type="button"
+          [class.active]="vault.typeFilter() === 'ALL'"
+          (click)="vault.typeFilter.set('ALL')"
+        >
+          All</button
+        ><button
+          type="button"
+          [class.active]="vault.typeFilter() === 'LOGIN'"
+          (click)="vault.typeFilter.set('LOGIN')"
+        >
+          Logins</button
+        ><button
+          type="button"
+          [class.active]="vault.typeFilter() === 'NOTE'"
+          (click)="vault.typeFilter.set('NOTE')"
+        >
+          Notes</button
+        ><button
+          type="button"
+          [class.active]="vault.typeFilter() === 'IDENTITY'"
+          (click)="vault.typeFilter.set('IDENTITY')"
+        >
+          Identity</button
+        ><button
+          type="button"
+          [class.active]="vault.typeFilter() === 'WIFI'"
+          (click)="vault.typeFilter.set('WIFI')"
+        >
+          Wi-Fi</button
+        ><button
+          type="button"
+          [class.active]="vault.typeFilter() === 'CUSTOM'"
+          (click)="vault.typeFilter.set('CUSTOM')"
+        >
+          Custom
+        </button>
+      </div>
+      <label class="sort-control"
+        >Sort<select [value]="sortOrder()" (change)="setSortOrder($event)">
+          <option value="UPDATED_DESC">Recently updated</option>
+          <option value="TITLE_ASC">Title A–Z</option>
+          <option value="TITLE_DESC">Title Z–A</option>
+        </select></label
       >
-        All</button
-      ><button
-        type="button"
-        [class.active]="vault.typeFilter() === 'LOGIN'"
-        (click)="vault.typeFilter.set('LOGIN')"
-      >
-        Logins</button
-      ><button
-        type="button"
-        [class.active]="vault.typeFilter() === 'NOTE'"
-        (click)="vault.typeFilter.set('NOTE')"
-      >
-        Notes</button
-      ><button
-        type="button"
-        [class.active]="vault.typeFilter() === 'IDENTITY'"
-        (click)="vault.typeFilter.set('IDENTITY')"
-      >
-        Identity
-      </button>
     </div>
     <div class="item-list">
       @for (item of items(); track item.id) {
         <app-vault-item-card
           [item]="item"
-          [selected]="vault.selectedId() === item.id"
-          (chosen)="vault.selectedId.set($event)"
+          [selected]="selectedItem()?.id === item.id"
+          (chosen)="chooseItem($event)"
         />
       } @empty {
         <div class="empty">
           <span><app-icon [name]="favouritesOnly ? 'favourite' : 'shield'" /></span>
-          <h2>
-            {{
-              vault.query()
-                ? 'Nothing matched'
-                : favouritesOnly
-                  ? 'No favourites yet'
-                  : 'Your vault is ready'
-            }}
-          </h2>
-          <p>
-            {{
-              vault.query()
-                ? 'Try a different title, label, or item type.'
-                : 'Add your first encrypted item to get started.'
-            }}
-          </p>
-          <a class="primary-button" routerLink="/vault/new/LOGIN"
-            ><app-icon name="plus" />Add login</a
-          >
+          <h2>{{ emptyTitle() }}</h2>
+          <p>{{ emptyDescription() }}</p>
+          @if (!scope) {
+            <a class="primary-button" routerLink="/vault/new/LOGIN"
+              ><app-icon name="plus" />Add login</a
+            >
+          }
         </div>
       }
     </div>
   </div>
   <aside class="details-pane" aria-live="polite">
-    @if (vault.selected(); as item) {
-      <header class="detail-header">
-        <span class="hero-icon"
-          ><app-icon
-            [name]="
-              item.type === 'LOGIN'
-                ? 'key'
-                : item.type === 'NOTE'
-                  ? 'note'
-                  : item.type === 'IDENTITY'
-                    ? 'identity'
-                    : item.type === 'WIFI'
-                      ? 'wifi'
-                      : 'custom'
-            "
-        /></span>
-        <div>
-          <p>{{ item.type.replace('_', ' ') }}</p>
-          <h2>{{ item.title }}</h2>
-        </div>
-        <button
-          class="icon-button star-button"
-          type="button"
-          (click)="vault.toggleFavourite(item)"
-          [attr.aria-label]="item.favourite ? 'Remove from favourites' : 'Add to favourites'"
-        >
-          <app-icon [name]="item.favourite ? 'star' : 'favourite'" />
-        </button>
-      </header>
-      <div class="labels">
-        @for (label of item.labels; track label) {
-          <span>{{ label }}</span>
-        }
-      </div>
-      <div class="field-list">
-        @for (field of item.fields; track field.id) {
-          <app-secret-field [field]="field" />
-        }
-      </div>
-      @if (item.notes) {
-        <section class="notes">
-          <h3>Notes</h3>
-          <p>{{ item.notes }}</p>
-        </section>
-      }
-      <dl class="metadata">
-        <div>
-          <dt>Created</dt>
-          <dd>{{ item.createdAt.slice(0, 10) }}</dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>{{ item.updatedAt.slice(0, 10) }}</dd>
-        </div>
-      </dl>
-      <a class="secondary-button edit-button" [routerLink]="['/vault/edit', item.id]"
-        ><app-icon name="more" />Edit item</a
-      >
+    @if (selectedItem(); as item) {
+      <app-vault-item-details [item]="item" />
     } @else {
       <div class="detail-empty">
         <app-icon name="panel" />
@@ -158,6 +128,11 @@
     </button>
     @if (addOpen()) {
       <div class="add-menu">
+        @for (template of vault.templates(); track template.id) {
+          <a [routerLink]="['/vault/new/template', template.id]"
+            ><app-icon name="custom" />{{ template.title }}</a
+          >
+        }
         <a routerLink="/vault/new/CUSTOM"><app-icon name="custom" />Custom item</a
         ><a routerLink="/vault/new/WIFI"><app-icon name="wifi" />Wi-Fi</a
         ><a routerLink="/vault/new/IDENTITY"><app-icon name="identity" />Identity</a
@@ -166,4 +141,20 @@
       </div>
     }
   </div>
+  <app-confirmation-dialog
+    [open]="cleanTrashOpen()"
+    [busy]="cleaningTrash()"
+    dialogId="clean-trash"
+    title="Permanently delete everything in Trash?"
+    [message]="
+      vault.trashedItems().length +
+      (vault.trashedItems().length === 1 ? ' item will' : ' items will') +
+      ' be permanently deleted. This cannot be undone.'
+    "
+    acknowledgementLabel="I understand that every trashed item will be permanently deleted."
+    confirmLabel="Clean trash"
+    busyLabel="Cleaning trash…"
+    (cancelled)="cleanTrashOpen.set(false)"
+    (confirmed)="cleanTrash()"
+  />
 </section>
