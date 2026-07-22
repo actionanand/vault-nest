@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   MIN_SDK_VERSION: 24
   TARGET_SDK_VERSION: 35
@@ -35,6 +39,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Bump versionCode and commit
+        if: github.ref == 'refs/heads/main-android'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -42,8 +47,9 @@ jobs:
           VERSION_CODE=$(node -p "require('./android-version.json').versionCode")
           VERSION_NAME=$(node -p "require('./android-version.json').versionName")
           echo "🔢 Building versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+          git pull --rebase --autostash
           git add android-version.json
-          git commit -m "chore: bump versionCode to $VERSION_CODE [skip ci]"
+          git diff --cached --quiet || git commit -m "chore: bump versionCode to $VERSION_CODE [skip ci]"
           git push
       - name: Build Angular application
         run: npm run build -- --configuration=production
@@ -207,6 +213,23 @@ jobs:
             ls -lh releases/
           else
             echo "ℹ️ The releases directory was not created."
+          fi
+
+      - name: Commit release files to main-android
+        if: github.ref == 'refs/heads/main-android'
+        run: |
+          test -s "releases/${RELEASE_BASENAME}.apk" || test -s "releases/${RELEASE_BASENAME}-unsigned.apk"
+          test -s "releases/${RELEASE_BASENAME}.aab" || test -s "releases/${RELEASE_BASENAME}-unsigned.aab"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash
+          git add releases/
+          if git diff --cached --quiet; then
+            echo "ℹ️ Release files are unchanged; no release commit is needed."
+          else
+            git commit -m "build: update Android release files [skip ci]"
+            git push
+            echo "✅ APK, AAB, and Play Store icon committed to main-android/releases."
           fi
 
       - name: Remove decoded signing key
