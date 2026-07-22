@@ -1,12 +1,10 @@
-import { Capacitor } from '@capacitor/core';
-import { LocalNotifications } from '@capacitor/local-notifications';
 import { DOCUMENT } from '@angular/common';
 import { Service, inject, signal } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import type { VaultField, VaultItem } from '../models/vault.models';
-import { ClipboardService } from './clipboard.service';
 import { ThemeService } from './theme.service';
 
-const COPY_ACTION_TYPE = 'vault-nest-copy-credential';
 const CHANNEL_ID = 'vault-nest-credential-copy';
 const COPY_WINDOW_MS = 3 * 60_000;
 const NOTIFIABLE_TYPES: ReadonlySet<VaultField['type']> = new Set([
@@ -17,6 +15,7 @@ const NOTIFIABLE_TYPES: ReadonlySet<VaultField['type']> = new Set([
 
 interface NativeCredentialNotificationBridge {
   cancelCredentialNotifications(csvIds: string, delayMs: number): void;
+  showCredentialCopyNotifications(jsonPayload: string, expiresAt: number, dark: boolean): void;
 }
 
 interface NativeCredentialNotificationWindow extends Window {
@@ -24,7 +23,6 @@ interface NativeCredentialNotificationWindow extends Window {
 }
 
 interface CopyShortcut {
-  readonly value: string;
   readonly label: string;
   readonly expiresAt: number;
 }
@@ -32,7 +30,6 @@ interface CopyShortcut {
 @Service()
 export class CredentialNotificationService {
   private readonly document = inject(DOCUMENT);
-  private readonly clipboard = inject(ClipboardService);
   private readonly theme = inject(ThemeService);
   private initialised = false;
   private readonly shortcuts = new Map<number, CopyShortcut>();
@@ -54,23 +51,6 @@ export class CredentialNotificationService {
         visibility: 0,
         lights: false,
         vibration: false,
-      });
-      await LocalNotifications.registerActionTypes({
-        types: [{ id: COPY_ACTION_TYPE, actions: [{ id: 'copy', title: 'Copy' }] }],
-      });
-      await LocalNotifications.addListener('localNotificationActionPerformed', async (event) => {
-        const extra = event.notification.extra as Record<string, unknown> | undefined;
-        if (extra?.['source'] !== 'vault-nest-copy') return;
-        const copyId = extra?.['copyId'];
-        if (typeof copyId !== 'number') return;
-        const shortcut = this.shortcuts.get(copyId);
-        if (!shortcut || Date.now() >= shortcut.expiresAt) {
-          await this.clearCopyShortcuts();
-          this.showMessage('This credential copy shortcut has expired. Nothing was copied.');
-          return;
-        }
-        await this.clipboard.copy(shortcut.value, shortcut.label);
-        this.showMessage(`${shortcut.label} copied`);
       });
       this.initialised = true;
       try {
@@ -106,27 +86,28 @@ export class CredentialNotificationService {
         this.showMessage('Android notification permission was not granted.');
         return false;
       }
+      const nativeBridge = this.nativeBridge();
+      if (!nativeBridge) {
+        this.showMessage('Update the Android app to use notification copy shortcuts.');
+        return false;
+      }
       await this.clearCopyShortcuts();
       const expiresAt = Date.now() + COPY_WINDOW_MS;
-      const notifications = fields.map((field, index) => {
+      const payload = fields.map((field, index) => {
         const id = this.notificationId(item.id, field.id, index);
-        this.shortcuts.set(id, { value: field.value, label: field.label, expiresAt });
+        this.shortcuts.set(id, { label: field.label, expiresAt });
         return {
           id,
-          title: `${field.label} — ${item.title}`,
-          body: 'Touch to copy. Available for 3 minutes.',
-          channelId: CHANNEL_ID,
-          actionTypeId: COPY_ACTION_TYPE,
-          smallIcon: 'ic_stat_vault_nest',
-          largeIcon: 'ic_launcher',
-          iconColor: this.theme.resolvedDark() ? '#bfea78' : '#3e6b19',
-          autoCancel: false,
-          extra: { source: 'vault-nest-copy', copyId: id },
+          label: field.label,
+          itemTitle: item.title,
+          value: field.value,
         };
       });
-      await LocalNotifications.schedule({
-        notifications,
-      });
+      nativeBridge.showCredentialCopyNotifications(
+        JSON.stringify(payload),
+        expiresAt,
+        this.theme.resolvedDark(),
+      );
       this.scheduleNativeNotificationCleanup([...this.shortcuts.keys()], COPY_WINDOW_MS);
       this.expiryTimer = setTimeout(() => void this.clearCopyShortcuts(), COPY_WINDOW_MS);
       this.showMessage(
@@ -183,12 +164,15 @@ export class CredentialNotificationService {
   private scheduleNativeNotificationCleanup(ids: readonly number[], delayMs: number): void {
     if (!ids.length) return;
     try {
-      (
-        this.document.defaultView as NativeCredentialNotificationWindow | null
-      )?.VaultNestNative?.cancelCredentialNotifications(ids.join(','), delayMs);
+      this.nativeBridge()?.cancelCredentialNotifications(ids.join(','), delayMs);
     } catch {
       // Native notification cleanup is only available in the Android shell.
     }
+  }
+
+  private nativeBridge(): NativeCredentialNotificationBridge | undefined {
+    return (this.document.defaultView as NativeCredentialNotificationWindow | null)
+      ?.VaultNestNative;
   }
 
   private showMessage(message: string): void {

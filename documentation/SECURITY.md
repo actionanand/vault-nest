@@ -32,9 +32,9 @@ The item Share dialog excludes notes, password, PIN, secret, OTP, hidden, and ex
 
 ### Android notification copy shortcuts
 
-The Android-only arrow-up-to-line action creates immediate notifications for populated username, email, and password fields. Notification metadata contains only an ephemeral numeric lookup ID—not the credential value, vault item ID, or field ID.
+The Android-only arrow-up-to-line action creates immediate native Android notifications for populated username, email, and password fields. Notification metadata and pending intents contain only an ephemeral numeric lookup ID, not the credential value, vault item ID, or field ID.
 
-Sending the shortcuts creates an explicit three-minute exception for only the selected values. They are held in a process-memory map and can therefore be copied from the notification after the vault is manually, automatically, or background-locked. Locking still clears the vault key and decrypted vault records; it is never deferred for this feature.
+Sending the shortcuts creates an explicit three-minute exception for only the selected values. They are held in a process-memory map and copied by a non-exported Android broadcast receiver, so the user can tap the notification or its Copy action while filling another app without bringing Vault Nest to the foreground. Locking still clears the vault key and decrypted vault records; it is never deferred for this feature.
 
 Every tap verifies the deadline before copying. At expiry, the in-memory map is cleared and Vault Nest attempts to cancel scheduled and delivered notifications. The Android shell also schedules native notification cancellation for the same three-minute expiry. Process termination or app restart destroys the map, so a stale notification has no credential to resolve. Clearing the vault database, removing the account, or automatic account deletion immediately invalidates the shortcuts.
 

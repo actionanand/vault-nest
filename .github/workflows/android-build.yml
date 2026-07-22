@@ -79,14 +79,16 @@ jobs:
           declare -A SIZES=([mipmap-mdpi]=48 [mipmap-hdpi]=72 [mipmap-xhdpi]=96 [mipmap-xxhdpi]=144 [mipmap-xxxhdpi]=192)
           for DIR in "${!SIZES[@]}"; do
             SIZE=${SIZES[$DIR]}
-            ICON_SIZE=$((SIZE * 72 / 100))
+            ICON_SIZE=$((SIZE * 58 / 100))
             mkdir -p "android/app/src/main/res/$DIR"
             convert public/vault-nest.png -background none -resize "${ICON_SIZE}x${ICON_SIZE}" -gravity center -extent "${SIZE}x${SIZE}" "android/app/src/main/res/$DIR/ic_launcher.png"
             convert public/vault-nest.png -background none -resize "${ICON_SIZE}x${ICON_SIZE}" -gravity center -extent "${SIZE}x${SIZE}" "android/app/src/main/res/$DIR/ic_launcher_round.png"
             convert public/vault-nest.png -background none -resize "${ICON_SIZE}x${ICON_SIZE}" -gravity center -extent "${SIZE}x${SIZE}" "android/app/src/main/res/$DIR/ic_launcher_foreground.png"
           done
           mkdir -p releases
-          convert public/vault-nest.png -background none -resize 432x432 -gravity center -extent 512x512 releases/playstore-icon.png
+          convert public/vault-nest.png -background none -resize 384x384 -gravity center -extent 512x512 releases/playstore-icon.png
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          convert public/vault-nest.png -background none -resize 256x256 -gravity center -extent 256x256 android/app/src/main/res/drawable-nodpi/vault_nest_splash_logo.png
           declare -A SPLASH_SIZES=([drawable-port-mdpi]=480x800 [drawable-port-hdpi]=720x1200 [drawable-port-xhdpi]=960x1600 [drawable-port-xxhdpi]=1440x2400 [drawable-port-xxxhdpi]=1920x3200)
           for DIR in "${!SPLASH_SIZES[@]}"; do
             mkdir -p "android/app/src/main/res/$DIR"
