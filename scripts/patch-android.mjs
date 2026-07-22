@@ -19,6 +19,11 @@ async function fileExists(path) {
 }
 
 const activityPath = resolve('android/app/src/main/java', ...appId.split('.'), 'MainActivity.java');
+const receiverPath = resolve(
+  'android/app/src/main/java',
+  ...appId.split('.'),
+  'CredentialCopyReceiver.java',
+);
 const manifestPath = resolve('android/app/src/main/AndroidManifest.xml');
 const gradlePath = resolve('android/app/build.gradle');
 const notificationIconPath = resolve('android/app/src/main/res/drawable/ic_stat_vault_nest.xml');
@@ -51,6 +56,13 @@ if (!manifest.includes('android.permission.CAMERA')) {
   );
   await writeFile(manifestPath, manifest, 'utf8');
 }
+if (!manifest.includes('.CredentialCopyReceiver')) {
+  manifest = manifest.replace(
+    /(<\/application>)/,
+    '        <receiver android:name=".CredentialCopyReceiver" android:exported="false" />\n    $1',
+  );
+  await writeFile(manifestPath, manifest, 'utf8');
+}
 
 let gradle = await readFile(gradlePath, 'utf8');
 if (!gradle.includes('androidx.biometric:biometric')) {
@@ -77,7 +89,10 @@ await writeFile(
 const source = `package ${appId};
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -124,6 +139,8 @@ import java.io.OutputStream;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 import javax.crypto.Cipher;
@@ -138,6 +155,7 @@ public class MainActivity extends BridgeActivity {
   private static final String KEY_ALIAS = "vault_nest_biometric_key";
   private static final String SECURITY_PREFERENCES = "vault_nest_security";
   private static final String EVIDENCE_KEY_ALIAS = "vault_nest_intrusion_evidence_key";
+  private static final String CREDENTIAL_CHANNEL_ID = "vault-nest-credential-copy";
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private byte[] pendingBackup;
   private volatile boolean vaultUnlocked = false;
@@ -154,6 +172,8 @@ public class MainActivity extends BridgeActivity {
     getBridge().getWebView().addJavascriptInterface(new SystemBarsBridge(), "VaultNestSystemBars");
     darkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
       == Configuration.UI_MODE_NIGHT_YES;
+    getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#0E1713")));
+    getBridge().getWebView().setBackgroundColor(Color.parseColor(darkMode ? "#0E1713" : "#F4F6F4"));
     applyLaunchBarStyle();
   }
 
@@ -181,8 +201,15 @@ public class MainActivity extends BridgeActivity {
   private void applySystemBars(boolean dark) {
     Window window = getWindow();
     int background = Color.parseColor(dark ? "#0E1713" : "#F4F6F4");
+    window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(background));
+    window.getDecorView().setBackgroundColor(background);
+    getBridge().getWebView().setBackgroundColor(background);
     window.setStatusBarColor(background);
     window.setNavigationBarColor(background);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.setStatusBarContrastEnforced(false);
+      window.setNavigationBarContrastEnforced(false);
+    }
     View decor = window.getDecorView();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       WindowInsetsController controller = decor.getWindowInsetsController();
@@ -258,8 +285,13 @@ public class MainActivity extends BridgeActivity {
   private void applyLaunchBarStyle() {
     Window window = getWindow();
     int background = Color.parseColor("#111B21");
+    window.getDecorView().setBackgroundColor(background);
     window.setStatusBarColor(background);
     window.setNavigationBarColor(background);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.setStatusBarContrastEnforced(false);
+      window.setNavigationBarContrastEnforced(false);
+    }
     View decor = window.getDecorView();
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       WindowInsetsController controller = decor.getWindowInsetsController();
@@ -311,6 +343,65 @@ public class MainActivity extends BridgeActivity {
     }
 
     @JavascriptInterface
+    public void showCredentialCopyNotifications(String jsonPayload, long expiresAt, boolean dark) {
+      try {
+        ensureCredentialNotificationChannel();
+        JSONArray fields = new JSONArray(jsonPayload);
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return;
+        List<Integer> ids = new ArrayList<>();
+        for (int index = 0; index < fields.length(); index++) {
+          JSONObject field = fields.getJSONObject(index);
+          int id = field.getInt("id");
+          String label = field.getString("label");
+          String itemTitle = field.getString("itemTitle");
+          String value = field.getString("value");
+          ids.add(id);
+          CredentialCopyReceiver.registerShortcut(id, label, value, expiresAt);
+          Intent intent = new Intent(MainActivity.this, CredentialCopyReceiver.class)
+            .setAction(CredentialCopyReceiver.ACTION_COPY)
+            .putExtra(CredentialCopyReceiver.EXTRA_COPY_ID, id);
+          PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            MainActivity.this,
+            id,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+          );
+          Notification.Action copyAction = new Notification.Action.Builder(
+            R.drawable.ic_stat_vault_nest,
+            "Copy",
+            pendingIntent
+          ).build();
+          Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? new Notification.Builder(MainActivity.this, CREDENTIAL_CHANNEL_ID)
+            : new Notification.Builder(MainActivity.this);
+          Notification notification = builder
+            .setSmallIcon(R.drawable.ic_stat_vault_nest)
+            .setContentTitle(label + " - " + itemTitle)
+            .setContentText("Touch to copy to clipboard.")
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(false)
+            .setOngoing(false)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setColor(Color.parseColor(dark ? "#BFEA78" : "#3E6B19"))
+            .addAction(copyAction)
+            .build();
+          manager.notify(id, notification);
+        }
+        StringBuilder csvIds = new StringBuilder();
+        for (int index = 0; index < ids.size(); index++) {
+          if (index > 0) csvIds.append(",");
+          csvIds.append(ids.get(index));
+        }
+        cancelCredentialNotifications(csvIds.toString(), Math.max(0L, expiresAt - System.currentTimeMillis()));
+      } catch (Exception error) {
+        dispatchNativeResult("credential-notifications", false, "", error.getMessage());
+      }
+    }
+
+    @JavascriptInterface
     public void cancelCredentialNotifications(String csvIds, long delayMs) {
       if (notificationCleanupTask != null) mainHandler.removeCallbacks(notificationCleanupTask);
       notificationCleanupTask = () -> {
@@ -318,7 +409,9 @@ public class MainActivity extends BridgeActivity {
         if (manager != null && csvIds != null && !csvIds.isEmpty()) {
           for (String rawId : csvIds.split(",")) {
             try {
-              manager.cancel(Integer.parseInt(rawId.trim()));
+              int id = Integer.parseInt(rawId.trim());
+              CredentialCopyReceiver.clearShortcut(id);
+              manager.cancel(id);
             } catch (Exception ignored) { }
           }
         }
@@ -536,6 +629,23 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
+  private void ensureCredentialNotificationChannel() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+    NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+    if (manager == null || manager.getNotificationChannel(CREDENTIAL_CHANNEL_ID) != null) return;
+    NotificationChannel channel = new NotificationChannel(
+      CREDENTIAL_CHANNEL_ID,
+      "Credential copy shortcuts",
+      NotificationManager.IMPORTANCE_HIGH
+    );
+    channel.setDescription("Temporary shortcuts for copying selected credential fields");
+    channel.setShowBadge(false);
+    channel.enableLights(false);
+    channel.enableVibration(false);
+    channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+    manager.createNotificationChannel(channel);
+  }
+
   private SecretKey createBiometricKey() throws Exception {
     KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
     KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
@@ -649,6 +759,75 @@ public class MainActivity extends BridgeActivity {
 
 await writeFile(activityPath, source, 'utf8');
 
+await writeFile(
+  receiverPath,
+  `package ${appId};
+
+import android.app.NotificationManager;
+import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.widget.Toast;
+
+import java.util.concurrent.ConcurrentHashMap;
+
+public class CredentialCopyReceiver extends BroadcastReceiver {
+  public static final String ACTION_COPY = "${appId}.COPY_CREDENTIAL";
+  public static final String EXTRA_COPY_ID = "copy_id";
+  private static final ConcurrentHashMap<Integer, CopyShortcut> SHORTCUTS = new ConcurrentHashMap<>();
+
+  public static void registerShortcut(int id, String label, String value, long expiresAt) {
+    SHORTCUTS.put(id, new CopyShortcut(label, value, expiresAt));
+  }
+
+  public static void clearShortcut(int id) {
+    SHORTCUTS.remove(id);
+  }
+
+  @Override
+  public void onReceive(Context context, Intent intent) {
+    if (intent == null || !ACTION_COPY.equals(intent.getAction())) return;
+    int id = intent.getIntExtra(EXTRA_COPY_ID, -1);
+    CopyShortcut shortcut = SHORTCUTS.get(id);
+    if (shortcut == null || System.currentTimeMillis() >= shortcut.expiresAt) {
+      SHORTCUTS.remove(id);
+      cancelNotification(context, id);
+      Toast.makeText(context, "Credential shortcut expired", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    try {
+      ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+      if (clipboard == null) throw new IllegalStateException("Clipboard unavailable");
+      clipboard.setPrimaryClip(ClipData.newPlainText(shortcut.label, shortcut.value));
+      Toast.makeText(context, shortcut.label + " copied", Toast.LENGTH_SHORT).show();
+    } catch (Exception error) {
+      Toast.makeText(context, "Credential could not be copied", Toast.LENGTH_SHORT).show();
+    }
+  }
+
+  private void cancelNotification(Context context, int id) {
+    NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+    if (manager != null) manager.cancel(id);
+  }
+
+  private static class CopyShortcut {
+    final String label;
+    final String value;
+    final long expiresAt;
+
+    CopyShortcut(String label, String value, long expiresAt) {
+      this.label = label;
+      this.value = value;
+      this.expiresAt = expiresAt;
+    }
+  }
+}
+`,
+  'utf8',
+);
+
 try {
   for (const directory of await readdir(resPath)) {
     if (!directory.startsWith('drawable')) continue;
@@ -661,7 +840,7 @@ try {
   // Resource directories are generated by Capacitor; missing folders are harmless here.
 }
 
-if (await fileExists(splashLogoSourcePath)) {
+if (!(await fileExists(splashLogoPath)) && (await fileExists(splashLogoSourcePath))) {
   await mkdir(dirname(splashLogoPath), { recursive: true });
   await copyFile(splashLogoSourcePath, splashLogoPath);
 }
@@ -760,7 +939,7 @@ await writeFile(
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
         <item name="windowSplashScreenBackground">#111B21</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_logo</item>
         <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:statusBarColor">#111B21</item>

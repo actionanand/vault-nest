@@ -102,7 +102,7 @@ Copy the single-line content of `keystore.b64.txt` into `KEYSTORE_BASE64`. Store
 5. Capacitor generates and syncs the Android project using `com.actionanand.vaultnest.app`.
 6. `scripts/patch-android.mjs` reads the generated Capacitor app ID and applies native backup/restore, biometric, intrusion-evidence, system-bar, and notification-icon patches to the matching Java package.
 7. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 35.
-8. ImageMagick generates launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
+8. ImageMagick generates padded launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
 9. Gradle receives those version values as project properties and creates unsigned release APK/AAB inputs.
 10. If all signing secrets exist, CI decodes the keystore, detects its type, signs, and verifies both artifacts.
 11. If no keystore is available or signing fails, CI copies clearly named unsigned artifacts.
@@ -142,8 +142,9 @@ Vault Nest's Android shell is generated from Capacitor and patched by CI. The pa
 - Camera permission for opt-in intrusion evidence.
 - Light/dark system-bar handling for automatic, light, and dark themes.
 - A white transparent notification small icon named `ic_stat_vault_nest`.
+- A non-exported native credential-copy receiver for notification taps and Copy actions.
 
-Credential notification copy shortcuts use `@capacitor/local-notifications` and `@capacitor/clipboard`. Username, email, and password values are not placed in notification metadata; they remain in app memory for the short copy window and are cleared after expiry.
+Credential notification copy shortcuts use `@capacitor/local-notifications` for permission checks and native Android notifications for the copy action. Username, email, and password values are not placed in notification metadata or pending intents; they remain in app process memory for the short copy window and are cleared after expiry.
 
 ## Local Android workflow
 
@@ -194,7 +195,7 @@ git push origin main-android
 
 ## Security notes
 
-- `public/vault-nest.png` is the canonical launcher, splash, and Play Store icon source.
+- `public/vault-nest.png` is the canonical launcher, splash, and Play Store icon source. CI pads launcher assets so Android masks do not clip the brand mark.
 - Android notification small icons must be white artwork on a transparent background; Android applies the final light/dark system tint.
 - Encrypted backup and restore use Android's system document picker and do not need broad storage permission.
 - Biometric unlock wraps the vault key with an Android Keystore key that is invalidated when biometric enrollment changes.
