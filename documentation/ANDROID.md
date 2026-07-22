@@ -51,20 +51,39 @@ Or provide the password non-interactively only in a trusted local shell:
 npm run generate-keystore -- --password 'YOUR_STRONG_PASSWORD'
 ```
 
+The generator uses OpenSSL and does not require Java or `keytool`. OpenSSL is
+normally already available in WSL2. Verify it with:
+
+```bash
+openssl version
+```
+
+If OpenSSL is missing, install it yourself in WSL2 and rerun the generator:
+
+```bash
+sudo apt update
+sudo apt install -y openssl
+```
+
 The output is `release-keystore.jks` with alias `vaultnest`. Despite the `.jks` filename, its internal format is PKCS12.
 
 Verify the keystore type:
 
 ```bash
-npm run keystore:type
-keytool -list -v -keystore release-keystore.jks
+KEYSTORE_PASSWORD='YOUR_STRONG_PASSWORD' \
+  openssl pkcs12 -in release-keystore.jks \
+  -passin env:KEYSTORE_PASSWORD -info -noout
 ```
 
 Generate the GitHub secret value in WSL/Linux:
 
 ```bash
-base64 -w 0 release-keystore.jks > keystore.b64.txt
+test -s release-keystore.jks && base64 -w 0 release-keystore.jks > keystore.b64.txt
 ```
+
+The `test -s` guard prevents creation of an empty `keystore.b64.txt` when the
+keystore is missing. If an earlier failed command created an empty file, it is
+safe to delete that empty file and run the guarded command after generation.
 
 On macOS:
 

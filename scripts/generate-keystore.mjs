@@ -2,46 +2,121 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
+import readline from 'node:readline/promises';
 
-const outputFile = 'release-keystore.jks';
 const alias = 'vaultnest';
-const passwordIndex = process.argv.indexOf('--password');
-const password =
-  passwordIndex >= 0 && process.argv[passwordIndex + 1]
-    ? process.argv[passwordIndex + 1]
-    : process.env.KEYSTORE_PASSWORD || null;
+const outputFile = 'release-keystore.jks';
+const keyFile = 'vault-nest-key.pem';
+const certFile = 'vault-nest-cert.pem';
+const validityDays = '36500';
+const subject = '/CN=Vault Nest/OU=Mobile/O=Vault Nest/C=IN';
+
+async function resolvePassword() {
+  const passwordIndex = process.argv.indexOf('--password');
+
+  if (passwordIndex >= 0 && process.argv[passwordIndex + 1]) {
+    return process.argv[passwordIndex + 1];
+  }
+
+  if (process.env.KEYSTORE_PASSWORD) {
+    return process.env.KEYSTORE_PASSWORD;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  rl._writeToOutput = (value) => {
+    if (value.includes('Enter keystore password')) {
+      rl.output.write(value);
+    }
+  };
+
+  const password = await rl.question('Enter keystore password: ');
+  rl.output.write('\n');
+  rl.close();
+
+  if (!password) {
+    throw new Error('Password cannot be empty.');
+  }
+
+  return password;
+}
+
+function run(command, args, env = {}) {
+  execFileSync(command, args, {
+    env: { ...process.env, ...env },
+    stdio: 'pipe',
+  });
+}
+
+function cleanup() {
+  for (const file of [keyFile, certFile]) {
+    if (existsSync(file)) {
+      rmSync(file);
+    }
+  }
+}
 
 try {
-  if (existsSync(outputFile)) rmSync(outputFile);
+  run('openssl', ['version']);
+} catch {
+  console.error('openssl was not found. Install openssl and try again.');
+  process.exit(1);
+}
 
-  const passwordArguments = password ? ['-storepass', password, '-keypass', password] : [];
-  execFileSync(
-    'keytool',
+try {
+  const password = await resolvePassword();
+
+  if (existsSync(outputFile)) {
+    rmSync(outputFile);
+  }
+
+  run('openssl', ['genrsa', '-out', keyFile, '2048']);
+  run('openssl', [
+    'req',
+    '-new',
+    '-x509',
+    '-key',
+    keyFile,
+    '-out',
+    certFile,
+    '-days',
+    validityDays,
+    '-subj',
+    subject,
+  ]);
+  run(
+    'openssl',
     [
-      '-genkeypair',
-      '-v',
-      '-storetype',
-      'PKCS12',
-      '-keyalg',
-      'RSA',
-      '-keysize',
-      '2048',
-      '-validity',
-      '36500',
-      ...passwordArguments,
-      '-alias',
-      alias,
-      '-keystore',
+      'pkcs12',
+      '-export',
+      '-in',
+      certFile,
+      '-inkey',
+      keyFile,
+      '-out',
       outputFile,
-      '-dname',
-      'CN=Vault Nest, OU=Mobile, O=Vault Nest, C=IN',
+      '-name',
+      alias,
+      '-passout',
+      'env:OPENSSL_PASS',
     ],
-    { stdio: 'inherit' },
+    { OPENSSL_PASS: password },
   );
 
-  console.log(`Created ${outputFile} as PKCS12 with alias ${alias}.`);
-  console.log('Back up this file and password securely; never commit them.');
+  cleanup();
+
+  console.log(`Created ${outputFile}`);
+  console.log(`Alias: ${alias}`);
+  console.log('Format: PKCS12');
+  console.log(
+    `Verify: openssl pkcs12 -in ${outputFile} -passin env:KEYSTORE_PASSWORD -info -noout`,
+  );
+  console.log(`Encode: base64 -w 0 ${outputFile} > keystore.b64.txt`);
 } catch (error) {
+  cleanup();
   console.error(error instanceof Error ? error.message : 'Keystore generation failed.');
   process.exit(1);
 }
