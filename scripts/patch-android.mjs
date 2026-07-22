@@ -52,7 +52,7 @@ await writeFile(
   'utf8',
 );
 
-const source = `package app.vaultnest.mobile;
+const source = `package com.actionanand.vaultnest.app;
 
 import android.app.Activity;
 import android.content.Intent;

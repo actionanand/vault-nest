@@ -4,7 +4,7 @@
 
 Install and commit package changes from WSL2. Do not run an Angular or Capacitor Android build locally unless explicitly troubleshooting the native shell. The Android project is generated rather than committed by the current workflow, so `npx cap sync android` alone will correctly report that the platform has not been added.
 
-`capacitor.config.ts` defines `app.vaultnest.mobile`, the Vault Nest display name, Android background colour, and notification icon name. The app uses only feature-specific Capacitor plugins; broad storage permission is not required for file-picker based imports and exports.
+`capacitor.config.ts` defines `com.actionanand.vaultnest.app`, the Vault Nest display name, Android background colour, and notification icon name. The app uses only feature-specific Capacitor plugins; broad storage permission is not required for file-picker based imports and exports.
 
 Credential copy shortcuts require both `@capacitor/local-notifications` and `@capacitor/clipboard`. Permission is requested only when the user invokes the Android-only notification action. Selected username, email, and password values remain available from those notifications for three minutes after sending, including while the vault is locked; the notification metadata never contains the values.
 

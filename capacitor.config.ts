@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.vaultnest.mobile',
+  appId: 'com.actionanand.vaultnest.app',
   appName: 'Vault Nest',
   webDir: 'dist/vault-nest/browser',
   server: { androidScheme: 'https' },
