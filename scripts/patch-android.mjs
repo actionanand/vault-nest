@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 const capacitorConfigPath = resolve('android/app/src/main/assets/capacitor.config.json');
@@ -9,10 +9,24 @@ if (typeof appId !== 'string' || !appId.trim()) {
   throw new Error(`Android appId is missing from ${capacitorConfigPath}.`);
 }
 
+async function fileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const activityPath = resolve('android/app/src/main/java', ...appId.split('.'), 'MainActivity.java');
 const manifestPath = resolve('android/app/src/main/AndroidManifest.xml');
 const gradlePath = resolve('android/app/build.gradle');
 const notificationIconPath = resolve('android/app/src/main/res/drawable/ic_stat_vault_nest.xml');
+const resPath = resolve('android/app/src/main/res');
+const splashLogoSourcePath = resolve('public/vault-nest.png');
+const splashLogoPath = resolve(resPath, 'drawable-nodpi/vault_nest_splash_logo.png');
+const splashIconPath = resolve(resPath, 'drawable/vault_nest_splash_icon.xml');
+const splashPath = resolve(resPath, 'drawable/splash.xml');
 
 await access(activityPath).catch(() => {
   throw new Error(
@@ -63,18 +77,32 @@ await writeFile(
 const source = `package ${appId};
 
 import android.app.Activity;
+import android.app.NotificationManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
@@ -110,41 +138,195 @@ public class MainActivity extends BridgeActivity {
   private static final String KEY_ALIAS = "vault_nest_biometric_key";
   private static final String SECURITY_PREFERENCES = "vault_nest_security";
   private static final String EVIDENCE_KEY_ALIAS = "vault_nest_intrusion_evidence_key";
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private byte[] pendingBackup;
   private volatile boolean vaultUnlocked = false;
+  private boolean darkMode;
+  private View launchOverlay;
+  private Runnable clipboardClearTask;
+  private Runnable notificationCleanupTask;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    showLaunchOverlay();
     getBridge().getWebView().addJavascriptInterface(new VaultNestNativeBridge(), "VaultNestNative");
     getBridge().getWebView().addJavascriptInterface(new SystemBarsBridge(), "VaultNestSystemBars");
-    boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+    darkMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
       == Configuration.UI_MODE_NIGHT_YES;
-    applySystemBars(dark);
+    applyLaunchBarStyle();
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    if (launchOverlay == null) applySystemBars(darkMode);
+  }
+
+  @Override
+  public void onWindowFocusChanged(boolean hasFocus) {
+    super.onWindowFocusChanged(hasFocus);
+    if (hasFocus && launchOverlay == null) applySystemBars(darkMode);
   }
 
   public class SystemBarsBridge {
     @JavascriptInterface
     public void setDarkMode(boolean enabled) {
+      darkMode = enabled;
       runOnUiThread(() -> applySystemBars(enabled));
     }
   }
 
+  @SuppressWarnings("deprecation")
   private void applySystemBars(boolean dark) {
+    Window window = getWindow();
     int background = Color.parseColor(dark ? "#0E1713" : "#F4F6F4");
-    getWindow().setStatusBarColor(background);
-    getWindow().setNavigationBarColor(background);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      int flags = getWindow().getDecorView().getSystemUiVisibility();
-      flags = dark ? flags & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : flags | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        flags = dark ? flags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : flags | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+    window.setStatusBarColor(background);
+    window.setNavigationBarColor(background);
+    View decor = window.getDecorView();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      WindowInsetsController controller = decor.getWindowInsetsController();
+      if (controller != null) {
+        int appearance = dark ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+          | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+        controller.setSystemBarsAppearance(
+          appearance,
+          WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        );
       }
-      getWindow().getDecorView().setSystemUiVisibility(flags);
+      return;
     }
+    int flags = decor.getSystemUiVisibility();
+    flags = dark ? flags & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : flags | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      flags = dark ? flags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : flags | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+    }
+    decor.setSystemUiVisibility(flags);
+  }
+
+  private void showLaunchOverlay() {
+    FrameLayout overlay = new FrameLayout(this);
+    overlay.setBackgroundColor(Color.parseColor("#111B21"));
+    overlay.setClickable(true);
+
+    ImageView icon = new ImageView(this);
+    icon.setImageResource(R.drawable.vault_nest_splash_logo);
+    icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    int padding = dp(24);
+    icon.setPadding(padding, padding, padding, padding);
+    GradientDrawable tile = new GradientDrawable();
+    tile.setShape(GradientDrawable.OVAL);
+    tile.setColor(Color.parseColor("#F4F6F4"));
+    icon.setBackground(tile);
+    icon.setElevation(dp(6));
+
+    FrameLayout.LayoutParams iconLayout = new FrameLayout.LayoutParams(dp(164), dp(164));
+    iconLayout.gravity = Gravity.CENTER;
+    overlay.addView(icon, iconLayout);
+    addContentView(
+      overlay,
+      new ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.MATCH_PARENT
+      )
+    );
+    launchOverlay = overlay;
+  }
+
+  private void hideLaunchOverlay() {
+    View overlay = launchOverlay;
+    if (overlay == null) return;
+    launchOverlay = null;
+    overlay.animate()
+      .alpha(0f)
+      .setDuration(180)
+      .withEndAction(() -> {
+        if (overlay.getParent() instanceof ViewGroup) {
+          ((ViewGroup) overlay.getParent()).removeView(overlay);
+        }
+        applySystemBars(darkMode);
+      })
+      .start();
+  }
+
+  private int dp(int value) {
+    return Math.round(value * getResources().getDisplayMetrics().density);
+  }
+
+  @SuppressWarnings("deprecation")
+  private void applyLaunchBarStyle() {
+    Window window = getWindow();
+    int background = Color.parseColor("#111B21");
+    window.setStatusBarColor(background);
+    window.setNavigationBarColor(background);
+    View decor = window.getDecorView();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      WindowInsetsController controller = decor.getWindowInsetsController();
+      if (controller != null) {
+        controller.setSystemBarsAppearance(
+          0,
+          WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        );
+      }
+      return;
+    }
+    int flags = decor.getSystemUiVisibility();
+    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+    }
+    decor.setSystemUiVisibility(flags);
   }
 
   public class VaultNestNativeBridge {
+    @JavascriptInterface
+    public void hideSplash() {
+      runOnUiThread(() -> hideLaunchOverlay());
+    }
+
+    @JavascriptInterface
+    public void setScreenshotProtection(boolean enabled) {
+      runOnUiThread(() -> {
+        if (enabled) {
+          getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        } else {
+          getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
+      });
+    }
+
+    @JavascriptInterface
+    public void scheduleClipboardClear(long delayMs) {
+      if (clipboardClearTask != null) mainHandler.removeCallbacks(clipboardClearTask);
+      clipboardClearTask = () -> {
+        try {
+          ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+          if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+        } catch (Exception ignored) { }
+        clipboardClearTask = null;
+      };
+      mainHandler.postDelayed(clipboardClearTask, Math.max(0L, delayMs));
+    }
+
+    @JavascriptInterface
+    public void cancelCredentialNotifications(String csvIds, long delayMs) {
+      if (notificationCleanupTask != null) mainHandler.removeCallbacks(notificationCleanupTask);
+      notificationCleanupTask = () -> {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null && csvIds != null && !csvIds.isEmpty()) {
+          for (String rawId : csvIds.split(",")) {
+            try {
+              manager.cancel(Integer.parseInt(rawId.trim()));
+            } catch (Exception ignored) { }
+          }
+        }
+        notificationCleanupTask = null;
+      };
+      mainHandler.postDelayed(notificationCleanupTask, Math.max(0L, delayMs));
+    }
+
     @JavascriptInterface
     public void setVaultUnlocked(boolean unlocked) {
       vaultUnlocked = unlocked;
@@ -466,6 +648,131 @@ public class MainActivity extends BridgeActivity {
 `;
 
 await writeFile(activityPath, source, 'utf8');
+
+try {
+  for (const directory of await readdir(resPath)) {
+    if (!directory.startsWith('drawable')) continue;
+    const splashPng = resolve(resPath, directory, 'splash.png');
+    const splashXml = resolve(resPath, directory, 'splash.xml');
+    if (await fileExists(splashPng)) await rm(splashPng);
+    if (directory !== 'drawable' && (await fileExists(splashXml))) await rm(splashXml);
+  }
+} catch {
+  // Resource directories are generated by Capacitor; missing folders are harmless here.
+}
+
+if (await fileExists(splashLogoSourcePath)) {
+  await mkdir(dirname(splashLogoPath), { recursive: true });
+  await copyFile(splashLogoSourcePath, splashLogoPath);
+}
+
+await mkdir(dirname(splashIconPath), { recursive: true });
+await writeFile(
+  splashIconPath,
+  `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="160dp"
+        android:height="160dp"
+        android:gravity="center">
+        <shape android:shape="oval">
+            <solid android:color="#F4F6F4" />
+        </shape>
+    </item>
+    <item
+        android:width="112dp"
+        android:height="112dp"
+        android:gravity="center">
+        <bitmap
+            android:gravity="fill"
+            android:src="@drawable/vault_nest_splash_logo" />
+    </item>
+</layer-list>
+`,
+  'utf8',
+);
+
+await writeFile(
+  splashPath,
+  `<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#111B21" />
+        </shape>
+    </item>
+    <item
+        android:drawable="@drawable/vault_nest_splash_icon"
+        android:gravity="center" />
+</layer-list>
+`,
+  'utf8',
+);
+
+const stylesPath = resolve(resPath, 'values/styles.xml');
+if (await fileExists(stylesPath)) {
+  let styles = await readFile(stylesPath, 'utf8');
+  const systemBarItems = `        <item name="android:statusBarColor">#F4F6F4</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F4F6F4</item>
+        <item name="android:windowLightNavigationBar">true</item>`;
+  if (!styles.includes('android:windowLightStatusBar')) {
+    styles = styles.replace(
+      /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/,
+      (_match, open, body, close) => `${open}${body}${systemBarItems}\n    ${close}`,
+    );
+  }
+  styles = styles.replace(
+    /(<style name="AppTheme\.NoActionBarLaunch"[^>]*>)([\s\S]*?)(<\/style>)/,
+    (_match, open, body, close) => {
+      const splashItem = '        <item name="android:background">@drawable/splash</item>';
+      const patchedBody = body.match(/<item name="android:background">[\s\S]*?<\/item>/)
+        ? body.replace(/\s*<item name="android:background">[\s\S]*?<\/item>/, `\n${splashItem}`)
+        : `${body}${splashItem}\n`;
+      return `${open}${patchedBody}${close}`;
+    },
+  );
+  await writeFile(stylesPath, styles, 'utf8');
+}
+
+const nightStylesPath = resolve(resPath, 'values-night/styles.xml');
+await mkdir(dirname(nightStylesPath), { recursive: true });
+await writeFile(
+  nightStylesPath,
+  `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#0E1713</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#0E1713</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
+`,
+  'utf8',
+);
+
+const v31StylesPath = resolve(resPath, 'values-v31/styles.xml');
+await mkdir(dirname(v31StylesPath), { recursive: true });
+await writeFile(
+  v31StylesPath,
+  `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+        <item name="windowSplashScreenBackground">#111B21</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
+        <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:statusBarColor">#111B21</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#111B21</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
+`,
+  'utf8',
+);
+
 console.log(
-  'Applied Vault Nest Android backup, biometric, system-bar, and notification-icon patches.',
+  'Applied Vault Nest Android backup, biometric, splash, screenshot, system-bar, and notification-icon patches.',
 );

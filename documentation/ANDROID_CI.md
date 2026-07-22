@@ -6,7 +6,7 @@ Install and commit package changes from WSL2. Do not run an Angular or Capacitor
 
 `capacitor.config.ts` defines `com.actionanand.vaultnest.app`, the Vault Nest display name, Android background colour, and notification icon name. The app uses only feature-specific Capacitor plugins; broad storage permission is not required for file-picker based imports and exports.
 
-Credential copy shortcuts require both `@capacitor/local-notifications` and `@capacitor/clipboard`. Permission is requested only when the user invokes the Android-only notification action. Selected username, email, and password values remain available from those notifications for three minutes after sending, including while the vault is locked; the notification metadata never contains the values.
+Credential copy shortcuts require both `@capacitor/local-notifications` and `@capacitor/clipboard`. Permission is requested only when the user invokes the Android-only notification action. Selected username, email, and password values remain available from those notifications for three minutes after sending, including while the vault is locked; the notification metadata never contains the values. The native shell also schedules notification dismissal at the three-minute expiry and clipboard clearing at the five-minute clipboard window.
 
 ## GitHub Actions
 
@@ -15,9 +15,9 @@ Credential copy shortcuts require both `@capacitor/local-notifications` and `@ca
 1. Restores locked npm dependencies.
 2. Builds Angular production assets.
 3. Generates and synchronises the Capacitor Android project.
-4. Applies the system document-picker bridge used for encrypted backup and restore.
-5. Applies SDK and app versions.
-6. Generates launcher, round, foreground, notification, store, and branded splash images from `public/vault-nest.png`.
+4. Applies SDK and app versions.
+5. Generates launcher, round, foreground, notification, store, and branded splash images from `public/vault-nest.png`.
+6. Applies the native Android shell patch after asset generation so branded splash resources and dark-mode system-bar styles are final.
 7. Builds release APK and AAB files.
 8. Signs when repository secrets exist; otherwise uploads clearly named unsigned artifacts.
 9. Removes the decoded keystore and uploads artifacts for 30 days.
@@ -42,6 +42,6 @@ Keep a secure independent keystore backup. Losing the release key can prevent up
 
 ## Native patches applied by CI
 
-`scripts/patch-android.mjs` adds the backup document picker, Android Keystore biometric bridge, light/dark system-bar bridge, biometric permission and dependency, and a monochrome status-bar notification vector. Android notification icons must be white-alpha silhouettes; the notification accent color follows Vault Nest's resolved light/dark theme. The navigation drawer also uses safe-area insets so it does not cover the Android status or gesture-navigation areas.
+`scripts/patch-android.mjs` adds the backup document picker, Android Keystore biometric bridge, screenshot-protection bridge, native splash overlay, light/dark system-bar bridge, biometric permission and dependency, and a monochrome status-bar notification vector. Android notification icons must be white-alpha silhouettes; the notification accent color follows Vault Nest's resolved light/dark theme. The patch also writes Android 12+ splash styles so cold starts do not show a plain white screen.
 
 The patch also declares Android camera permission and provides the Keystore-backed private-file bridge used by opt-in intrusion evidence. Camera permission is requested only when the owner enables the setting. No camera framework dependency is added: the Capacitor WebView captures the explicitly permitted front-camera frame and hands the JPEG to native encryption immediately.

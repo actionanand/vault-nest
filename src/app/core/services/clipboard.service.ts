@@ -1,10 +1,20 @@
 import { Clipboard } from '@capacitor/clipboard';
-import { Service, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { Service, inject, signal } from '@angular/core';
 
 const CLIPBOARD_CLEAR_MS = 5 * 60_000;
 
+interface NativeClipboardBridge {
+  scheduleClipboardClear(delayMs: number): void;
+}
+
+interface NativeClipboardWindow extends Window {
+  VaultNestNative?: NativeClipboardBridge;
+}
+
 @Service()
 export class ClipboardService {
+  private readonly document = inject(DOCUMENT);
   private clearTimer: ReturnType<typeof setTimeout> | null = null;
   readonly lastMessage = signal<string | null>(null);
 
@@ -29,6 +39,13 @@ export class ClipboardService {
       this.clearTimer = null;
       void Clipboard.write({ string: '' });
     }, CLIPBOARD_CLEAR_MS);
+    try {
+      (
+        this.document.defaultView as NativeClipboardWindow | null
+      )?.VaultNestNative?.scheduleClipboardClear(CLIPBOARD_CLEAR_MS);
+    } catch {
+      // Native clipboard clearing is only available in the Android shell.
+    }
   }
 
   private showMessage(message: string): void {

@@ -26,7 +26,7 @@ Android Keystore-backed biometric unlock is implemented with the full master pas
 
 ## Clipboard
 
-Copy actions write the selected value, announce what was copied, and schedule an overwrite with an empty value after five minutes. Users can also clear it immediately in Settings. Android or the browser may suspend the application before the timer runs, so automatic clearing is best effort.
+Copy actions write the selected value, announce what was copied, and schedule an overwrite with an empty value after five minutes. Users can also clear it immediately in Settings. Browser clearing depends on the WebView timer. Android also asks the native shell to clear the clipboard after five minutes, but the operating system can still kill the process, so automatic clearing remains best effort.
 
 The item Share dialog excludes notes, password, PIN, secret, OTP, hidden, and explicitly sensitive fields by default. Including them requires a deliberate checkbox selection and displays a warning before Copy or system Share. When included, those values become readable clipboard/share text outside Vault Nest's encryption boundary.
 
@@ -36,7 +36,7 @@ The Android-only arrow-up-to-line action creates immediate notifications for pop
 
 Sending the shortcuts creates an explicit three-minute exception for only the selected values. They are held in a process-memory map and can therefore be copied from the notification after the vault is manually, automatically, or background-locked. Locking still clears the vault key and decrypted vault records; it is never deferred for this feature.
 
-Every tap verifies the deadline before copying. At expiry, the in-memory map is cleared and Vault Nest attempts to cancel scheduled and delivered notifications. Android may suspend the process and delay visual notification removal, but an expired shortcut still cannot copy because the deadline is checked on every action. Process termination or app restart also destroys the map, so a stale notification has no credential to resolve. Clearing the vault database, removing the account, or automatic account deletion immediately invalidates the shortcuts.
+Every tap verifies the deadline before copying. At expiry, the in-memory map is cleared and Vault Nest attempts to cancel scheduled and delivered notifications. The Android shell also schedules native notification cancellation for the same three-minute expiry. Process termination or app restart destroys the map, so a stale notification has no credential to resolve. Clearing the vault database, removing the account, or automatic account deletion immediately invalidates the shortcuts.
 
 JavaScript strings cannot be reliably zeroed in place, so this feature deliberately trades a bounded three-minute in-memory exposure for locked-vault notification copying. The copied value remains subject to the separate five-minute clipboard policy below.
 
@@ -82,4 +82,4 @@ On Android, biometric unlock stores only an AES-GCM-wrapped vault key. Its wrapp
 
 ## Clipboard lifetime
 
-Vault Nest overwrites app-copied clipboard values after five minutes while its process remains alive. Mobile operating systems may suspend or kill the process, so this is a best-effort timeout rather than a guarantee; users can always use **Clear clipboard now**. Notification copy shortcuts use a shorter three-minute lifetime and are removed after expiry.
+Vault Nest overwrites app-copied clipboard values after five minutes while its process remains alive. On Android, the native shell also schedules the same clipboard clear so it is not dependent only on Angular change detection or visiting Settings. Mobile operating systems may still kill the process, so this is a best-effort timeout rather than a guarantee; users can always use **Clear clipboard now**. Notification copy shortcuts use a shorter three-minute lifetime and are removed after expiry.
