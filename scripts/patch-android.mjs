@@ -161,6 +161,7 @@ public class MainActivity extends BridgeActivity {
   private volatile boolean vaultUnlocked = false;
   private boolean darkMode;
   private View launchOverlay;
+  private long launchOverlayShownAt;
   private Runnable clipboardClearTask;
   private Runnable notificationCleanupTask;
 
@@ -259,11 +260,17 @@ public class MainActivity extends BridgeActivity {
       )
     );
     launchOverlay = overlay;
+    launchOverlayShownAt = System.currentTimeMillis();
   }
 
   private void hideLaunchOverlay() {
     View overlay = launchOverlay;
     if (overlay == null) return;
+    long remainingMs = Math.max(0L, 1100L - (System.currentTimeMillis() - launchOverlayShownAt));
+    if (remainingMs > 0L) {
+      mainHandler.postDelayed(() -> hideLaunchOverlay(), remainingMs);
+      return;
+    }
     launchOverlay = null;
     overlay.animate()
       .alpha(0f)
@@ -360,12 +367,13 @@ public class MainActivity extends BridgeActivity {
           CredentialCopyReceiver.registerShortcut(id, label, value, expiresAt);
           Intent intent = new Intent(MainActivity.this, CredentialCopyReceiver.class)
             .setAction(CredentialCopyReceiver.ACTION_COPY)
+            .setData(Uri.parse("vaultnest://credential-copy/" + id))
             .putExtra(CredentialCopyReceiver.EXTRA_COPY_ID, id);
           PendingIntent pendingIntent = PendingIntent.getBroadcast(
             MainActivity.this,
             id,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
           );
           Notification.Action copyAction = new Notification.Action.Builder(
             R.drawable.ic_stat_vault_nest,
@@ -769,6 +777,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -776,7 +786,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CredentialCopyReceiver extends BroadcastReceiver {
   public static final String ACTION_COPY = "${appId}.COPY_CREDENTIAL";
   public static final String EXTRA_COPY_ID = "copy_id";
+  private static final long CLIPBOARD_CLEAR_MS = 5L * 60L * 1000L;
+  private static final Handler HANDLER = new Handler(Looper.getMainLooper());
   private static final ConcurrentHashMap<Integer, CopyShortcut> SHORTCUTS = new ConcurrentHashMap<>();
+  private static Runnable clipboardClearTask;
 
   public static void registerShortcut(int id, String label, String value, long expiresAt) {
     SHORTCUTS.put(id, new CopyShortcut(label, value, expiresAt));
@@ -800,7 +813,9 @@ public class CredentialCopyReceiver extends BroadcastReceiver {
     try {
       ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
       if (clipboard == null) throw new IllegalStateException("Clipboard unavailable");
+      clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
       clipboard.setPrimaryClip(ClipData.newPlainText(shortcut.label, shortcut.value));
+      scheduleClipboardClear(context.getApplicationContext());
       Toast.makeText(context, shortcut.label + " copied", Toast.LENGTH_SHORT).show();
     } catch (Exception error) {
       Toast.makeText(context, "Credential could not be copied", Toast.LENGTH_SHORT).show();
@@ -810,6 +825,18 @@ public class CredentialCopyReceiver extends BroadcastReceiver {
   private void cancelNotification(Context context, int id) {
     NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
     if (manager != null) manager.cancel(id);
+  }
+
+  private static void scheduleClipboardClear(Context context) {
+    if (clipboardClearTask != null) HANDLER.removeCallbacks(clipboardClearTask);
+    clipboardClearTask = () -> {
+      try {
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+      } catch (Exception ignored) { }
+      clipboardClearTask = null;
+    };
+    HANDLER.postDelayed(clipboardClearTask, CLIPBOARD_CLEAR_MS);
   }
 
   private static class CopyShortcut {
@@ -939,7 +966,7 @@ await writeFile(
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
         <item name="windowSplashScreenBackground">#111B21</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
         <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:statusBarColor">#111B21</item>
