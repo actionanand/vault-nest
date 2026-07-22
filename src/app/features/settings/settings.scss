@@ -1,0 +1,274 @@
+.settings-page {
+  width: min(100%, 48rem);
+  margin: auto;
+  padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 4vw, 2rem) 7rem;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 0.3rem 0;
+  font-size: 2rem;
+  letter-spacing: -0.04em;
+}
+header > p:last-child {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.settings-page section {
+  margin-top: 2rem;
+}
+.settings-page h2 {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.setting-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.5rem;
+  gap: 0.4rem;
+}
+.theme-options button {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  min-height: 6rem;
+  padding: 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+}
+.theme-options button.active {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.theme-options span {
+  display: grid;
+  gap: 0.2rem;
+}
+.theme-options strong {
+  font-size: 0.76rem;
+}
+.theme-options small {
+  font-size: 0.62rem;
+}
+.rows > button {
+  display: flex;
+  width: 100%;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.rows > button:last-child {
+  border: 0;
+}
+.rows > button:hover {
+  background: var(--surface-subtle);
+}
+.rows > button.destructive-row,
+.rows > button.destructive-row > span > app-icon {
+  color: var(--danger);
+}
+.rows > button > span {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.rows > button > span > app-icon {
+  color: var(--accent-strong);
+}
+.rows > button > span > span {
+  display: grid;
+  gap: 0.2rem;
+}
+.rows strong {
+  font-size: 0.8rem;
+}
+.rows small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+.rows b {
+  padding: 0.25rem 0.45rem;
+  border-radius: 99px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+.rows b.on {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.attempt-setting {
+  margin-top: 0.75rem;
+  padding: 1rem;
+}
+.attempt-setting label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.attempt-setting label > span {
+  display: grid;
+  gap: 0.25rem;
+}
+.attempt-setting strong {
+  font-size: 0.8rem;
+}
+.attempt-setting small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+.attempt-setting select {
+  min-height: 2.75rem;
+  padding: 0.55rem 2rem 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.destructive-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
+  border-radius: 0.7rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.setting-note {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.about {
+  margin: 1.5rem;
+  color: var(--text-faint);
+  font-size: 0.69rem;
+  line-height: 1.5;
+}
+.toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.78rem;
+  box-shadow: var(--shadow-lg);
+}
+.settings-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 115;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #071016b8;
+  backdrop-filter: blur(4px);
+}
+.settings-dialog {
+  width: min(100%, 30rem);
+  display: grid;
+  gap: 1rem;
+  padding: 1.4rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.settings-dialog h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.settings-dialog p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.settings-dialog label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.settings-dialog input,
+.settings-dialog select {
+  min-height: 2.8rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.settings-dialog .dialog-error {
+  color: var(--danger);
+}
+.settings-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+@media (max-width: 520px) {
+  .theme-options {
+    grid-template-columns: 1fr;
+  }
+  .theme-options button {
+    grid-template-columns: auto 1fr;
+    min-height: 3.8rem;
+    align-items: center;
+    justify-items: start;
+    text-align: left;
+  }
+  .attempt-setting label {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .settings-dialog-actions {
+    flex-direction: column-reverse;
+  }
+  .settings-dialog-actions > * {
+    width: 100%;
+  }
+}

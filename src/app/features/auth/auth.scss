@@ -1,0 +1,160 @@
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    radial-gradient(
+      circle at 75% 5%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 38%
+    ),
+    var(--surface-subtle);
+}
+.auth-card {
+  width: min(100%, 33rem);
+  display: grid;
+  gap: 1.65rem;
+  padding: clamp(1.4rem, 5vw, 2.6rem);
+  border: 1px solid var(--border);
+  border-radius: 1.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.auth-card.compact {
+  width: min(100%, 29rem);
+}
+h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.8rem, 7vw, 2.5rem);
+  letter-spacing: -0.04em;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.lede {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+form {
+  display: grid;
+  gap: 1.15rem;
+}
+label {
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+input:not([type='checkbox']) {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+input:focus {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+input.invalid,
+input.invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+.password-requirements {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1rem;
+  margin: 0.1rem 0 0;
+  padding: 0;
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 550;
+  list-style: none;
+}
+.password-requirements li::before {
+  content: '×';
+  display: inline-block;
+  width: 1rem;
+  font-weight: 800;
+}
+.password-requirements li.met {
+  color: var(--success);
+}
+.password-requirements li.met::before {
+  content: '✓';
+}
+.field-error {
+  color: var(--danger);
+}
+.field {
+  position: relative;
+  display: flex;
+}
+.field input {
+  padding-right: 3.2rem;
+}
+.field .icon-button {
+  position: absolute;
+  right: 0.2rem;
+  top: 0.2rem;
+}
+.optional {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+small {
+  color: var(--text-muted);
+  font-weight: 450;
+  line-height: 1.4;
+}
+.check {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.check input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  accent-color: var(--accent-strong);
+}
+.form-error {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.87rem;
+}
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+.privacy-note {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+@media (max-width: 420px) {
+  .password-requirements {
+    grid-template-columns: 1fr;
+  }
+}

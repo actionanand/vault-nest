@@ -1,0 +1,314 @@
+:host {
+  display: block;
+}
+.details {
+  position: relative;
+}
+.action-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+.action-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+.action-button:hover {
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+.action-button.danger {
+  color: var(--danger);
+}
+.detail-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.hero-icon {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  border-radius: 1.25rem;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.hero-icon app-icon {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+.detail-header p {
+  margin: 0 0 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: capitalize;
+}
+.detail-header h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.headline-actions {
+  display: flex;
+  align-items: center;
+}
+.star-button {
+  color: var(--warning);
+}
+.menu-wrap {
+  position: relative;
+}
+.overflow-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  width: 13rem;
+  display: grid;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.overflow-menu button {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+}
+.overflow-menu button:hover,
+.overflow-menu button:focus-visible {
+  background: var(--surface-subtle);
+}
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1rem 0;
+}
+.labels span {
+  padding: 0.25rem 0.55rem;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.68rem;
+}
+.notes {
+  margin-top: 1.5rem;
+}
+.notes h3 {
+  font-size: 0.75rem;
+}
+.notes p {
+  color: var(--text-muted);
+  font-size: 0.87rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.metadata {
+  display: flex;
+  gap: 2rem;
+  margin: 1.5rem 0;
+}
+.metadata div {
+  display: grid;
+  gap: 0.2rem;
+}
+.metadata dt {
+  color: var(--text-faint);
+  font-size: 0.66rem;
+}
+.metadata dd {
+  margin: 0;
+  font-size: 0.75rem;
+}
+.edit-button {
+  width: 100%;
+}
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #071016b8;
+  backdrop-filter: blur(4px);
+}
+.label-dialog {
+  width: min(100%, 29rem);
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.label-dialog h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.label-dialog p {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.label-options {
+  display: grid;
+  max-height: 15rem;
+  overflow: auto;
+}
+.label-options label {
+  display: grid;
+  min-height: 3rem;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+.label-options input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent-strong);
+}
+.custom-label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+.custom-label input {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 5rem;
+  z-index: 130;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.78rem;
+  box-shadow: var(--shadow-lg);
+}
+.share-sensitive {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+.share-sensitive input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--accent-strong);
+}
+.share-sensitive span {
+  display: grid;
+  gap: 0.25rem;
+}
+.share-sensitive strong {
+  font-size: 0.8rem;
+}
+.share-sensitive small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+.share-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border-radius: 0.7rem;
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+.share-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.star-button {
+  color: var(--text-faint);
+}
+.star-button.favourited {
+  color: #2f9e57;
+}
+@media (max-width: 600px) {
+  .action-bar {
+    justify-content: space-around;
+    margin: -0.4rem 0 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .action-button {
+    min-width: 4.8rem;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .detail-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .hero-icon {
+    width: 3.4rem;
+    height: 3.4rem;
+  }
+  .detail-header h2 {
+    font-size: 1.3rem;
+  }
+  .overflow-menu {
+    position: fixed;
+    right: 1rem;
+    top: 5.2rem;
+  }
+  .dialog-actions {
+    flex-direction: column-reverse;
+  }
+  .dialog-actions > * {
+    width: 100%;
+  }
+}

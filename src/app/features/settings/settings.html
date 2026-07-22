@@ -1,0 +1,403 @@
+<main class="settings-page">
+  <header>
+    <p class="eyebrow">Preferences</p>
+    <h1>Settings</h1>
+    <p>Control how Vault Nest behaves on this device.</p>
+  </header>
+  <section>
+    <h2>Appearance</h2>
+    <div class="setting-card theme-options">
+      <button
+        type="button"
+        [class.active]="preferences().theme === 'LIGHT'"
+        (click)="setTheme('LIGHT')"
+      >
+        <app-icon name="sun" /><span
+          ><strong>Light</strong><small>Always use light mode</small></span
+        ></button
+      ><button
+        type="button"
+        [class.active]="preferences().theme === 'DARK'"
+        (click)="setTheme('DARK')"
+      >
+        <app-icon name="moon" /><span
+          ><strong>Dark</strong><small>Always use dark mode</small></span
+        ></button
+      ><button
+        type="button"
+        [class.active]="preferences().theme === 'AUTOMATIC'"
+        (click)="setTheme('AUTOMATIC')"
+      >
+        <app-icon name="settings" /><span
+          ><strong>Automatic</strong><small>Follow your device</small></span
+        >
+      </button>
+    </div>
+  </section>
+  <section>
+    <h2>Security</h2>
+    <div class="setting-card rows">
+      <button type="button" (click)="toggle('lockOnBackground')">
+        <span
+          ><app-icon name="lock" /><span
+            ><strong>Lock in background</strong
+            ><small>Lock when the application leaves the foreground</small></span
+          ></span
+        ><b [class.on]="preferences().lockOnBackground">{{
+          preferences().lockOnBackground ? 'On' : 'Off'
+        }}</b></button
+      ><button type="button" (click)="toggle('screenshotProtection')">
+        <span
+          ><app-icon name="shield" /><span
+            ><strong>Screenshot protection</strong
+            ><small
+              >Android may prevent captures and recent-app previews on protected screens</small
+            ></span
+          ></span
+        ><b [class.on]="preferences().screenshotProtection">{{
+          preferences().screenshotProtection ? 'On' : 'Off'
+        }}</b></button
+      ><button type="button" (click)="clearClipboard()">
+        <span
+          ><app-icon name="clipboard" /><span
+            ><strong>Clear clipboard now</strong
+            ><small>Copied values are cleared automatically after 5 minutes</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+      <button
+        type="button"
+        [disabled]="securityBusy() || !auth.biometricAvailable()"
+        (click)="toggleBiometric()"
+      >
+        <span
+          ><app-icon name="biometric" /><span
+            ><strong>Biometric unlock</strong
+            ><small>{{
+              auth.biometricAvailable()
+                ? 'Use Android device authentication to unwrap the vault key'
+                : 'Available only on a supported Android device'
+            }}</small></span
+          ></span
+        >
+        <b [class.on]="preferences().biometricEnabled">{{
+          preferences().biometricEnabled ? 'On' : 'Off'
+        }}</b>
+      </button>
+      <button
+        type="button"
+        [disabled]="securityBusy() || !intrusionEvidence.isAndroid()"
+        (click)="toggleIntrusionEvidence()"
+      >
+        <span
+          ><app-icon name="camera" /><span
+            ><strong>Intrusion evidence</strong
+            ><small>{{
+              intrusionEvidence.isAndroid()
+                ? 'Capture an encrypted front-camera photo after the third continuous failed unlock'
+                : 'Available only in the Android app'
+            }}</small></span
+          ></span
+        >
+        <b [class.on]="preferences().intrusionEvidenceEnabled">{{
+          preferences().intrusionEvidenceEnabled ? 'On' : 'Off'
+        }}</b>
+      </button>
+    </div>
+    @if (preferences().intrusionEvidenceEnabled) {
+      <p class="setting-note">
+        Android will show its camera privacy indicator during evidence capture. Disabling this
+        option stops future captures; existing encrypted evidence remains available after login
+        until you delete it or remove the account.
+      </p>
+    }
+    <div class="setting-card attempt-setting">
+      <label for="easy-login-mode"
+        ><span
+          ><strong>Easy login</strong
+          ><small>Use the first or last 4 characters of your master password</small></span
+        >
+        <select
+          id="easy-login-mode"
+          [value]="preferences().easyUnlockMode"
+          (change)="changeEasyLogin($event)"
+        >
+          <option value="DISABLED">Disabled (recommended)</option>
+          <option value="FIRST_4">First 4 characters</option>
+          <option value="LAST_4">Last 4 characters</option>
+        </select>
+      </label>
+      @if (preferences().easyUnlockMode !== 'DISABLED') {
+        <p class="destructive-warning" role="alert">
+          <app-icon name="shield" />Easy login is weaker than the full master password. Failed
+          easy-login attempts count toward the deletion limit.
+        </p>
+      }
+    </div>
+    <div class="setting-card attempt-setting">
+      <label for="maximum-unlock-attempts">
+        <span>
+          <strong>Failed password attempts</strong>
+          <small>How many incorrect master-password attempts are allowed?</small>
+        </span>
+        <select
+          id="maximum-unlock-attempts"
+          [value]="attemptSelectValue()"
+          (change)="setMaxUnlockAttempts($event)"
+        >
+          <option value="unlimited">Unlimited (default)</option>
+          <option value="3">3 attempts</option>
+          <option value="5">5 attempts</option>
+          <option value="10">10 attempts</option>
+        </select>
+      </label>
+      @if (preferences().maxUnlockAttempts !== null) {
+        <p class="destructive-warning" role="alert">
+          <app-icon name="trash" />
+          After {{ preferences().maxUnlockAttempts }} incorrect attempts, the account, every
+          password, and the complete local database will be permanently deleted. This cannot be
+          undone.
+        </p>
+      } @else {
+        <p class="setting-note">
+          Unlimited prevents automatic deletion, but five continuous failures trigger escalating
+          cooldowns from 1 minute up to 12 hours. A partial streak resets after 1 minute without
+          another failure.
+        </p>
+      }
+    </div>
+  </section>
+  <section>
+    <h2>Data</h2>
+    <div class="setting-card rows">
+      <button type="button" (click)="openBackup('CREATE')">
+        <span
+          ><app-icon name="shield" /><span
+            ><strong>Create encrypted backup</strong
+            ><small>Save a passphrase-protected .vaultpack file</small></span
+          ></span
+        ><app-icon name="chevron_down" /></button
+      ><button type="button" (click)="openBackup('RESTORE')">
+        <span
+          ><app-icon name="restore" /><span
+            ><strong>Restore encrypted backup</strong
+            ><small>Select a .vaultpack file and replace this vault</small></span
+          ></span
+        ><app-icon name="chevron_down" /></button
+      ><button type="button" (click)="openTrashRetention()">
+        <span
+          ><app-icon name="archive" /><span
+            ><strong>Trash retention</strong
+            ><small>{{
+              preferences().trashRetentionDays === 0
+                ? 'Never'
+                : preferences().trashRetentionDays + ' days'
+            }}</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+      <button type="button" class="destructive-row" (click)="clearDatabaseOpen.set(true)">
+        <span
+          ><app-icon name="trash" /><span
+            ><strong>Clear vault database</strong
+            ><small>Delete every saved vault item while keeping this account</small></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </button>
+    </div>
+  </section>
+  <p class="about">
+    Vault Nest stores encrypted data only on this device. Browser screenshot blocking is not
+    technically reliable and is never claimed.
+  </p>
+  @if (message()) {
+    <span class="toast" role="status">{{ message() }}</span>
+  }
+  <app-confirmation-dialog
+    [open]="clearDatabaseOpen()"
+    [busy]="clearingDatabase()"
+    dialogId="clear-vault-database"
+    title="Clear the complete vault database?"
+    message="Every saved password and vault item will be permanently deleted. Your master password, account, and preferences will remain. This action cannot be undone."
+    acknowledgementLabel="I understand that every saved vault item will be permanently deleted."
+    confirmLabel="Clear database"
+    busyLabel="Clearing database…"
+    (cancelled)="clearDatabaseOpen.set(false)"
+    (confirmed)="clearVaultDatabase()"
+  />
+  <app-confirmation-dialog
+    [open]="restoreConfirmationOpen()"
+    [busy]="backupBusy()"
+    dialogId="restore-vault-backup"
+    title="Replace this vault with the backup?"
+    message="The current account, preferences, and every saved item will be replaced. After restoration, unlock with the master password that belonged to the backup."
+    acknowledgementLabel="I understand that my current local vault will be replaced."
+    confirmLabel="Restore backup"
+    busyLabel="Restoring backup…"
+    iconName="restore"
+    (cancelled)="restoreConfirmationOpen.set(false)"
+    (confirmed)="confirmRestore()"
+  />
+  <app-confirmation-dialog
+    [open]="attemptLimitConfirmationOpen()"
+    [busy]="savingAttemptLimit()"
+    dialogId="confirm-failed-attempt-limit"
+    title="Enable permanent deletion after failed attempts?"
+    [message]="
+      'After ' +
+      pendingMaxUnlockAttempts() +
+      ' incorrect master-password attempts, the account, every password, and the complete local database will be permanently deleted. Another person could trigger this deletion by repeatedly trying to unlock the app.'
+    "
+    acknowledgementLabel="I understand that reaching this limit will permanently delete all local vault data."
+    [confirmLabel]="'Enable ' + pendingMaxUnlockAttempts() + '-attempt limit'"
+    busyLabel="Saving limit…"
+    (cancelled)="cancelAttemptLimitChange()"
+    (confirmed)="confirmAttemptLimitChange()"
+  />
+  @if (backupDialogOpen()) {
+    <div class="settings-dialog-backdrop" role="presentation">
+      <section
+        class="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="backup-dialog-title"
+      >
+        <div>
+          <h2 id="backup-dialog-title">
+            {{
+              backupAction() === 'CREATE' ? 'Create encrypted backup' : 'Restore encrypted backup'
+            }}
+          </h2>
+          <p>
+            {{
+              backupAction() === 'CREATE'
+                ? 'This passphrase encrypts the backup file and is separate from your master password.'
+                : 'Enter the passphrase used when this backup was created.'
+            }}
+          </p>
+        </div>
+        <label
+          >Backup passphrase<input
+            type="password"
+            autocomplete="off"
+            [value]="backupPassphrase()"
+            (input)="setBackupPassphrase($event)"
+        /></label>
+        @if (backupAction() === 'CREATE') {
+          <label
+            >Confirm backup passphrase<input
+              type="password"
+              autocomplete="off"
+              [value]="backupConfirmation()"
+              (input)="setBackupConfirmation($event)"
+          /></label>
+        }
+        @if (backupError()) {
+          <p class="dialog-error" role="alert">{{ backupError() }}</p>
+        }
+        <div class="settings-dialog-actions">
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="backupBusy()"
+            (click)="closeBackup()"
+          >
+            Cancel
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="backupBusy()"
+            (click)="submitBackup()"
+          >
+            {{
+              backupBusy() ? 'Working…' : backupAction() === 'CREATE' ? 'Create backup' : 'Continue'
+            }}
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+  @if (retentionDialogOpen()) {
+    <div class="settings-dialog-backdrop" role="presentation">
+      <section
+        class="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retention-dialog-title"
+      >
+        <div>
+          <h2 id="retention-dialog-title">Trash retention</h2>
+          <p>
+            Items older than this period are permanently deleted when Vault Nest opens. Choose Never
+            to delete items only yourself.
+          </p>
+        </div>
+        <label
+          >Keep deleted items<select
+            [value]="retentionSelectValue()"
+            (change)="setRetention($event)"
+          >
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="0">Never automatically delete</option>
+          </select></label
+        >
+        <div class="settings-dialog-actions">
+          <button class="secondary-button" type="button" (click)="cancelTrashRetention()">
+            Cancel
+          </button>
+          <button class="primary-button" type="button" (click)="saveTrashRetention()">
+            Save retention
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+  @if (easyLoginDialogOpen()) {
+    <div class="settings-dialog-backdrop" role="presentation">
+      <section
+        class="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="easy-login-dialog-title"
+      >
+        <div>
+          <h2 id="easy-login-dialog-title">Enable 4-character easy login?</h2>
+          <p>
+            This reduces unlock security. Confirm with your full master password. Incorrect
+            easy-login attempts will use the same failed-attempt deletion limit.
+          </p>
+        </div>
+        <label
+          >Current master password<input
+            type="password"
+            autocomplete="current-password"
+            [value]="easyLoginPassword()"
+            (input)="setEasyLoginPassword($event)"
+        /></label>
+        @if (auth.error()) {
+          <p class="dialog-error" role="alert">{{ auth.error() }}</p>
+        }
+        <div class="settings-dialog-actions">
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="securityBusy()"
+            (click)="cancelEasyLogin()"
+          >
+            Cancel</button
+          ><button
+            class="primary-button"
+            type="button"
+            [disabled]="securityBusy() || !easyLoginPassword()"
+            (click)="confirmEasyLogin()"
+          >
+            Enable easy login
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+</main>
