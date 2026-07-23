@@ -4,7 +4,15 @@
       <app-icon name="back" />
     </a>
     <div>
-      <p>{{ existing ? 'Edit item' : 'New encrypted item' }}</p>
+      <p>
+        {{
+          existing?.template
+            ? 'Edit custom template'
+            : existing
+              ? 'Edit item'
+              : 'New encrypted item'
+        }}
+      </p>
       <h1>{{ type.toLowerCase().replace('_', ' ') }}</h1>
     </div>
     <div class="editor-actions">
@@ -24,7 +32,7 @@
         <button
           class="icon-button delete-button"
           type="button"
-          aria-label="Move item to Trash"
+          [attr.aria-label]="existing.template ? 'Delete custom template' : 'Move item to Trash'"
           (click)="deleteDialogOpen.set(true)"
         >
           <app-icon name="trash" />
@@ -410,11 +418,19 @@
   [open]="deleteDialogOpen()"
   [busy]="deleting()"
   dialogId="delete-vault-item"
-  title="Move this item to Trash?"
-  message="The item will leave your active vault and remain recoverable in Trash until its retention period expires."
-  acknowledgementLabel="I understand that this item will be moved to Trash."
-  confirmLabel="Move to Trash"
-  busyLabel="Moving to Trash…"
+  [title]="existing?.template ? 'Delete this custom template?' : 'Move this item to Trash?'"
+  [message]="
+    existing?.template
+      ? 'Only this reusable template will be permanently deleted. Credentials created from it are not affected.'
+      : 'The item will leave your active vault and remain recoverable in Trash until its retention period expires.'
+  "
+  [acknowledgementLabel]="
+    existing?.template
+      ? 'I understand that this custom template cannot be recovered.'
+      : 'I understand that this item will be moved to Trash.'
+  "
+  [confirmLabel]="existing?.template ? 'Delete template' : 'Move to Trash'"
+  [busyLabel]="existing?.template ? 'Deleting template…' : 'Moving to Trash…'"
   (cancelled)="deleteDialogOpen.set(false)"
   (confirmed)="deleteItem()"
 />

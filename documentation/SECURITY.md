@@ -46,6 +46,16 @@ Every tap verifies the deadline before decrypting or copying. At expiry, the enc
 
 JavaScript and Java strings cannot be reliably zeroed in place, so this feature deliberately trades a bounded three-minute encrypted shortcut exposure for locked-vault notification copying. The copied value is marked sensitive for Android clipboard previews and remains subject to the separate five-minute clipboard policy below.
 
+### Android expiry reminders
+
+An active credential with a future card-level expiry date can schedule an Android local
+notification three days before expiry. The notification contains only the credential title and
+expiry date. It never contains usernames, passwords, field values, notes, 2FA backup codes, or
+other secrets. Android stores the pending notification schedule outside the encrypted vault, so
+the title and expiry date are deliberately disclosed to the Android notification subsystem.
+Removing the expiry, archiving, trashing, deleting, clearing the database, or removing the account
+cancels the corresponding reminder.
+
 ## Password changes
 
 The architecture supports rewrapping the random vault key with a new derived key. A password-change workflow must authenticate the old password, generate a new salt, derive a new wrapping key, atomically replace the header, and retain a rollback copy until the transaction commits.

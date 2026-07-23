@@ -216,4 +216,7 @@
       </section>
     </div>
   }
+  @if (expiryReminders.lastMessage()) {
+    <div class="global-toast" role="status">{{ expiryReminders.lastMessage() }}</div>
+  }
 </div>

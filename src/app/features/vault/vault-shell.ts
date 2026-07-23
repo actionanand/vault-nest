@@ -16,6 +16,7 @@ import {
   type IntrusionEvidenceEntry,
 } from '../../core/services/intrusion-evidence.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
+import { ExpiryReminderService } from '../../core/services/expiry-reminder.service';
 
 @Component({
   selector: 'app-vault-shell',
@@ -48,6 +49,7 @@ export class VaultShell implements OnInit, OnDestroy {
   private readonly backup = inject(BackupService);
   private readonly websiteIcons = inject(WebsiteIconService);
   readonly intrusionEvidence = inject(IntrusionEvidenceService);
+  readonly expiryReminders = inject(ExpiryReminderService);
   private preferences: VaultPreferences = DEFAULT_PREFERENCES;
   private timer: ReturnType<typeof setInterval> | null = null;
   readonly drawerOpen = signal(false);
@@ -115,6 +117,7 @@ export class VaultShell implements OnInit, OnDestroy {
         return;
       }
       await this.credentialNotifications.clearCopyShortcuts();
+      await this.expiryReminders.cancelAll();
       this.vault.clear();
       this.removeAccountOpen.set(false);
       this.removeAccountForm.reset();

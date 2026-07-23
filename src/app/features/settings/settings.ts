@@ -7,6 +7,7 @@ import { AppIcon } from '../../shared/components/app-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { VaultStore } from '../../core/services/vault.store';
 import { CredentialNotificationService } from '../../core/services/credential-notification.service';
+import { ExpiryReminderService } from '../../core/services/expiry-reminder.service';
 import { BackupService } from '../../core/services/backup.service';
 import { ClipboardService } from '../../core/services/clipboard.service';
 import { AuthStore } from '../../core/services/auth.store';
@@ -24,6 +25,7 @@ export class Settings implements OnInit {
   private readonly storage = inject(StorageEngine);
   private readonly vault = inject(VaultStore);
   private readonly credentialNotifications = inject(CredentialNotificationService);
+  private readonly expiryReminders = inject(ExpiryReminderService);
   private readonly backup = inject(BackupService);
   private readonly csvExport = inject(CsvExportService);
   private readonly clipboard = inject(ClipboardService);
@@ -273,6 +275,7 @@ export class Settings implements OnInit {
       await this.backup.restore(this.backupContents(), this.backupPassphrase());
       await this.auth.disableBiometric();
       await this.credentialNotifications.clearCopyShortcuts();
+      await this.expiryReminders.cancelAll();
       this.vault.clear();
       this.restoreConfirmationOpen.set(false);
       this.backupDialogOpen.set(false);
@@ -321,6 +324,7 @@ export class Settings implements OnInit {
     try {
       await this.storage.clearVaultData();
       await this.credentialNotifications.clearCopyShortcuts();
+      await this.expiryReminders.cancelAll();
       this.vault.clear();
       this.clearDatabaseOpen.set(false);
       this.message.set('All vault items were permanently deleted');

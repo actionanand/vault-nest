@@ -14,6 +14,7 @@ import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
+import { ExpiryReminderService } from '../../core/services/expiry-reminder.service';
 
 type FieldForm = FormGroup<{
   id: FormControl<string>;
@@ -102,6 +103,7 @@ export class ItemEditor implements OnInit {
   private readonly vault = inject(VaultStore);
   private readonly passwordStrengthService = inject(PasswordStrengthService);
   private readonly websiteIcons = inject(WebsiteIconService);
+  private readonly expiryReminders = inject(ExpiryReminderService);
   existing: VaultItem | null = null;
   private readonly creatingFromTemplate =
     this.route.snapshot.routeConfig?.path === 'new/template/:id';
@@ -176,7 +178,10 @@ export class ItemEditor implements OnInit {
         this.patchTemplate(source);
       } else {
         this.existing = source;
-        if (this.existing) this.patch(this.existing);
+        if (this.existing) {
+          this.type = this.existing.type;
+          this.patch(this.existing);
+        }
       }
     } else
       this.defaultFields(this.type).forEach((field) => this.fields.push(this.createField(field)));
@@ -236,21 +241,22 @@ export class ItemEditor implements OnInit {
     }
     const value = this.form.getRawValue();
     const now = new Date().toISOString();
+    const editingTemplate = this.existing?.template === true;
     const item: VaultItem = {
       id: this.existing?.id ?? crypto.randomUUID(),
       type: this.existing?.type ?? this.type,
       title: value.title.trim(),
-      notes: value.notes,
-      backupCodes: value.backupCodes || undefined,
+      notes: editingTemplate ? '' : value.notes,
+      backupCodes: editingTemplate ? undefined : value.backupCodes || undefined,
       labels: value.labels
         .split(',')
         .map((label) => label.trim())
         .filter(Boolean),
-      favourite: value.favourite,
-      archived: this.existing?.archived ?? false,
-      template: false,
+      favourite: editingTemplate ? false : value.favourite,
+      archived: editingTemplate ? false : (this.existing?.archived ?? false),
+      template: editingTemplate,
       deletedAt: this.existing?.deletedAt,
-      expiresAt: value.expiresAt || undefined,
+      expiresAt: editingTemplate ? undefined : value.expiresAt || undefined,
       createdAt: this.existing?.createdAt ?? now,
       updatedAt: now,
       fields: value.fields
@@ -259,10 +265,12 @@ export class ItemEditor implements OnInit {
           ...field,
           id: field.id || crypto.randomUUID(),
           label: field.label.trim(),
+          value: editingTemplate ? '' : field.value,
         })),
       icon: value.icon,
     };
     await this.vault.save(item);
+    await this.expiryReminders.scheduleForItem(item, Boolean(item.expiresAt));
     const previousWebsite = this.existing ? this.websiteIcons.firstWebsite(this.existing) : null;
     const websiteChanged =
       this.existing !== null && previousWebsite !== this.websiteIcons.firstWebsite(item);
@@ -349,6 +357,13 @@ export class ItemEditor implements OnInit {
     if (!this.existing || this.deleting()) return;
     this.deleting.set(true);
     try {
+      if (this.existing.template) {
+        await this.vault.deletePermanently(this.existing.id);
+        this.deleteDialogOpen.set(false);
+        this.form.markAsPristine();
+        await this.router.navigateByUrl('/vault/all');
+        return;
+      }
       await this.vault.save({
         ...this.existing,
         deletedAt: new Date().toISOString(),

@@ -165,25 +165,99 @@
       type="button"
       (click)="addOpen.set(!addOpen())"
       [attr.aria-expanded]="addOpen()"
+      aria-controls="add-item-menu"
       aria-label="Add vault item"
     >
       <app-icon [name]="addOpen() ? 'close' : 'plus'" />
     </button>
     @if (addOpen()) {
-      <div class="add-menu">
+      <div
+        id="add-item-menu"
+        class="add-menu"
+        role="group"
+        aria-label="Add item or manage templates"
+      >
         @for (template of vault.templates(); track template.id) {
-          <a [routerLink]="['/vault/new/template', template.id]"
-            ><app-icon name="custom" />{{ template.title }}</a
-          >
+          <div class="template-row">
+            <a
+              class="template-create"
+              [routerLink]="['/vault/new/template', template.id]"
+              (click)="closeAddMenu()"
+              ><app-icon name="custom" /><span>{{ template.title }}</span></a
+            >
+            <a
+              class="template-action"
+              [routerLink]="['/vault/edit', template.id]"
+              (click)="closeAddMenu()"
+              [attr.aria-label]="'Edit template ' + template.title"
+              title="Edit template"
+              ><app-icon name="edit"
+            /></a>
+            <button
+              class="template-action danger"
+              type="button"
+              (click)="confirmTemplateDelete(template)"
+              [attr.aria-label]="'Delete template ' + template.title"
+              title="Delete template"
+            >
+              <app-icon name="trash" />
+            </button>
+          </div>
         }
-        <a routerLink="/vault/new/CUSTOM"><app-icon name="custom" />Custom item</a
-        ><a routerLink="/vault/new/WIFI"><app-icon name="wifi" />Wi-Fi</a
-        ><a routerLink="/vault/new/IDENTITY"><app-icon name="identity" />Identity</a
-        ><a routerLink="/vault/new/NOTE"><app-icon name="note" />Secure note</a
-        ><a routerLink="/vault/new/LOGIN"><app-icon name="key" />Login</a>
+        @if (customTemplates().length) {
+          <button class="reset-templates" type="button" (click)="resetTemplatesOpen.set(true)">
+            <app-icon name="restore" />Reset custom templates
+          </button>
+        }
+        <div class="app-templates" aria-label="App templates">
+          <a routerLink="/vault/new/CUSTOM" (click)="closeAddMenu()"
+            ><app-icon name="custom" />Custom item</a
+          ><a routerLink="/vault/new/WIFI" (click)="closeAddMenu()"><app-icon name="wifi" />Wi-Fi</a
+          ><a routerLink="/vault/new/IDENTITY" (click)="closeAddMenu()"
+            ><app-icon name="identity" />Identity</a
+          ><a routerLink="/vault/new/NOTE" (click)="closeAddMenu()"
+            ><app-icon name="note" />Secure note</a
+          ><a routerLink="/vault/new/LOGIN" (click)="closeAddMenu()"
+            ><app-icon name="key" />Login</a
+          >
+        </div>
       </div>
     }
   </div>
+  <app-confirmation-dialog
+    [open]="templateToDelete() !== null"
+    [busy]="templateBusy()"
+    dialogId="delete-custom-template"
+    title="Delete this custom template?"
+    [message]="
+      (templateToDelete()?.title ?? 'This template') +
+      ' will be permanently deleted. Credentials already created from it will not be changed.'
+    "
+    acknowledgementLabel="I understand that the custom template cannot be recovered."
+    confirmLabel="Delete template"
+    busyLabel="Deleting template…"
+    (cancelled)="templateToDelete.set(null)"
+    (confirmed)="deleteTemplate()"
+  />
+  <app-confirmation-dialog
+    [open]="resetTemplatesOpen()"
+    [busy]="templateBusy()"
+    dialogId="reset-custom-templates"
+    title="Reset templates to app defaults?"
+    [message]="
+      customTemplates().length +
+      (customTemplates().length === 1
+        ? ' custom template will be permanently deleted.'
+        : ' custom templates will be permanently deleted.') +
+      ' Saved credentials and the app-provided Login, Secure note, Identity, Wi-Fi, and Custom item templates will remain.'
+    "
+    acknowledgementLabel="I understand that only my custom templates will be deleted."
+    confirmLabel="Reset templates"
+    busyLabel="Resetting templates…"
+    iconName="restore"
+    (cancelled)="resetTemplatesOpen.set(false)"
+    (confirmed)="resetTemplates()"
+  />
   <app-confirmation-dialog
     [open]="cleanTrashOpen()"
     [busy]="cleaningTrash()"
