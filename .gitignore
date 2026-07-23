@@ -5,7 +5,7 @@
 /tmp
 /out-tsc
 /bazel-out
-/reference
+# /reference
 
 # Node
 /node_modules
@@ -43,6 +43,7 @@ testem.log
 __screenshots__/
 release-keystore.jks
 keystore.b64.txt
+*.vaultpack
 
 # System files
 .DS_Store

@@ -58,6 +58,27 @@ Test all of these on a physical Android device:
 
 Never put plaintext credential values into notification titles, bodies, action labels, log output, analytics, intent URIs, or pending-intent extras.
 
+## Credential expiry reminders
+
+Expiry reminders are Android-only native scheduled notifications. Saving an active credential with
+an expiry date schedules one reminder for 9:00 AM local time three days before expiry. If the
+credential expires within the next three days, Android schedules the reminder shortly after the
+item is saved. Dates are interpreted in the device's local timezone.
+
+Vault Nest asks for Android notification permission when the user first saves an item that needs a
+reminder, or after unlock when an existing future expiry needs scheduling. When permission is
+denied, the credential and expiry date remain saved, but the reminder is not scheduled.
+
+Each credential uses a stable notification ID. Editing the expiry replaces the prior schedule.
+Removing the expiry, archiving, trashing, permanently deleting, clearing the database, or removing
+the account cancels its pending reminder. Unlocking the vault reconciles active credential expiry
+dates with Android's pending notifications, which also restores schedules after a backup is
+restored and the app reloads.
+
+The notification contains the credential title and expiry date so the user can identify the item.
+It never contains field values, usernames, passwords, PINs, secrets, notes, or 2FA backup codes.
+Delivery time is controlled by Android and may be delayed by device battery optimisation.
+
 ## Theme-aware option pickers
 
 Android's native HTML `select` overlay is rendered by the device or WebView and can remain light even when Vault Nest is dark. Field-type selection therefore uses the reusable Angular `SelectPicker` instead of a native `select`. On phones it opens as a bottom sheet; on larger screens it opens as a centred dialog. Both surfaces use Vault Nest theme variables, so Light, Dark, and Automatic modes remain consistent without relying on OEM dropdown styling.

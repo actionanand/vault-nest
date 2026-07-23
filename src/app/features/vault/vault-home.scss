@@ -296,16 +296,20 @@ h1 {
   cursor: pointer;
 }
 .add-menu {
-  display: flex;
-  flex-direction: column-reverse;
+  display: grid;
   gap: 0.35rem;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: min(70dvh, 40rem);
   padding: 0.5rem;
   border: 1px solid var(--border);
   border-radius: 0.9rem;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
+  overflow: auto;
+  order: -1;
 }
-.add-menu a {
+.add-menu a,
+.reset-templates {
   display: flex;
   min-width: 10rem;
   align-items: center;
@@ -317,8 +321,45 @@ h1 {
   font-size: 0.78rem;
   font-weight: 650;
 }
-.add-menu a:hover {
+.add-menu a:hover,
+.reset-templates:hover {
   background: var(--surface-subtle);
+}
+.template-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  border-radius: 0.6rem;
+}
+.template-create {
+  min-width: 0 !important;
+}
+.template-create span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.add-menu .template-action {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  justify-content: center;
+  padding: 0.5rem;
+}
+.template-action.danger,
+.reset-templates {
+  color: var(--danger);
+}
+.template-action,
+.reset-templates {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.app-templates {
+  display: grid;
+  gap: 0.2rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
 }
 @media (max-width: 1050px) {
   .vault-page {

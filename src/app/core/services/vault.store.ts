@@ -3,14 +3,16 @@ import type { VaultItem, VaultItemRecord } from '../models/vault.models';
 import { VaultCryptoService } from '../crypto/vault-crypto.service';
 import { StorageEngine } from '../storage/storage-engine';
 import { AuthStore } from './auth.store';
-import { PasswordGeneratorService } from './password-generator.service';
+import { PasswordStrengthService } from './password-strength.service';
+import { ExpiryReminderService } from './expiry-reminder.service';
 
 @Service()
 export class VaultStore {
   private readonly storage = inject(StorageEngine);
   private readonly crypto = inject(VaultCryptoService);
   private readonly auth = inject(AuthStore);
-  private readonly passwordGenerator = inject(PasswordGeneratorService);
+  private readonly passwordStrength = inject(PasswordStrengthService);
+  private readonly expiryReminders = inject(ExpiryReminderService);
   readonly items = signal<readonly VaultItem[]>([]);
   readonly query = signal('');
   readonly typeFilter = signal<VaultItem['type'] | 'ALL'>('ALL');
@@ -39,7 +41,7 @@ export class VaultStore {
         (field) =>
           field.type === 'PASSWORD' &&
           field.value.length > 0 &&
-          this.passwordGenerator.entropy(field.value) < 50,
+          this.passwordStrength.analyse(field.value).entropy < 50,
       ),
     ),
   );
@@ -74,6 +76,7 @@ export class VaultStore {
       ),
     );
     this.items.set(items);
+    void this.expiryReminders.sync(items);
     if (!this.selectedId()) {
       this.selectedId.set(
         items.find((item) => !item.archived && !item.deletedAt && !item.template)?.id ?? null,
@@ -105,6 +108,7 @@ export class VaultStore {
       ),
     );
     if (options.select !== false) this.selectedId.set(item.id);
+    await this.expiryReminders.scheduleForItem(item, false);
   }
 
   async toggleFavourite(item: VaultItem): Promise<void> {
@@ -112,6 +116,7 @@ export class VaultStore {
   }
   async deletePermanently(id: string): Promise<void> {
     await this.storage.deleteItem(id);
+    await this.expiryReminders.cancelForItem(id);
     this.items.update((items) => items.filter((item) => item.id !== id));
     if (this.selectedId() === id) this.selectedId.set(null);
   }

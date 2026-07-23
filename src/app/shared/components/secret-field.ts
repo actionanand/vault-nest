@@ -1,6 +1,7 @@
 import { Component, inject, input, signal } from '@angular/core';
 import type { VaultField } from '../../core/models/vault.models';
 import { ClipboardService } from '../../core/services/clipboard.service';
+import { PasswordStrengthService } from '../../core/services/password-strength.service';
 import { AppIcon } from './app-icon';
 
 @Component({
@@ -32,6 +33,24 @@ import { AppIcon } from './app-icon';
         </button>
       </div>
     </div>
+    @if (field().type === 'PASSWORD' && field().value) {
+      @let analysis = strength.analyse(field().value);
+      <div
+        class="password-strength"
+        [attr.data-score]="analysis.score"
+        [attr.aria-label]="analysis.label + '. Crack time: ' + analysis.crackTime"
+      >
+        <div class="strength-track" aria-hidden="true">
+          @for (segment of strengthSegments; track segment) {
+            <i [class.active]="segment <= analysis.score"></i>
+          }
+        </div>
+        <p>
+          <strong>{{ analysis.label }}</strong>
+          <span>Crack time: {{ analysis.crackTime }}</span>
+        </p>
+      </div>
+    }
     @if (message()) {
       <span class="toast" role="status">{{ message() }}</span>
     }`,
@@ -61,6 +80,50 @@ import { AppIcon } from './app-icon';
     .actions {
       display: flex;
     }
+    .password-strength {
+      display: grid;
+      gap: 0.4rem;
+      padding: 0 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .strength-track {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.25rem;
+    }
+    .strength-track i {
+      height: 0.24rem;
+      border-radius: 99px;
+      background: var(--border-strong);
+    }
+    .password-strength[data-score='1'] i.active {
+      background: var(--danger);
+    }
+    .password-strength[data-score='2'] i.active {
+      background: var(--warning);
+    }
+    .password-strength[data-score='3'] i.active,
+    .password-strength[data-score='4'] i.active {
+      background: var(--accent-strong);
+    }
+    .password-strength p {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.6rem;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+    }
+    .password-strength strong {
+      color: var(--text);
+    }
+    @media (max-width: 420px) {
+      .password-strength p {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+    }
     .toast {
       position: fixed;
       right: 1rem;
@@ -77,7 +140,9 @@ import { AppIcon } from './app-icon';
 })
 export class SecretField {
   private readonly clipboard = inject(ClipboardService);
+  readonly strength = inject(PasswordStrengthService);
   readonly field = input.required<VaultField>();
+  readonly strengthSegments = [1, 2, 3, 4] as const;
   readonly revealed = signal(false);
   readonly message = signal('');
   async copy(): Promise<void> {

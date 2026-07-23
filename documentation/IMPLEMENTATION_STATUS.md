@@ -18,10 +18,11 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Persisted unlimited-mode cooldown escalation and finite easy-login full-password/biometric recovery.
 - Opt-in Android front-camera intrusion evidence with Keystore encryption, timestamped post-login review, download, retention, and confirmed deletion.
 - Master-password-confirmed account removal and consent-confirmed vault database clearing.
-- Responsive credential details on mobile and desktop with labels, confirmed archive/trash actions, reusable templates, duplicate, and consent-based sensitive sharing.
+- Responsive credential details on mobile and desktop with labels, confirmed archive/trash actions, editable/deletable reusable templates, safe custom-template reset, duplicate, and consent-based sensitive sharing.
 - Dedicated Archive and Trash views with restore, permanent deletion, and configurable automatic retention.
 - Versioned, passphrase-encrypted `.vaultpack` backup and transactional restore through browser and Android system file pickers.
 - Android-only username/email/password notification copy shortcuts with a three-minute locked-vault window, Android Keystore-encrypted temporary storage, foreground-authorized no-display copy handling, native delayed notification cleanup, and no plaintext credential values in notification text or pending intents.
+- Android-only credential expiry reminders scheduled three days before expiry, with stable rescheduling and cleanup when credentials become inactive or are deleted.
 - Optional first-four/last-four easy login and Android Keystore-backed strong-biometric unlock, both with the full master password as fallback.
 - Compact gzip-before-encryption backups, safe-area mobile navigation, theme-aware Android system bars, branded native splash resources, padded launcher icons, optional Android screenshot blocking, and monochrome notification icons.
 - Android Capacitor configuration and signed/unsigned CI artifact workflow using the brand image.
@@ -31,7 +32,7 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Dedicated label management and recent activity.
 - Password/value history with encrypted restore and deletion.
 - Security findings with keyed reuse comparison and local weakness analysis.
-- Expiry dashboard and local notification scheduling.
+- Expiry dashboard.
 - TOTP generation and QR scanning.
 - Encrypted attachment streaming through Filesystem/IndexedDB Blob repositories.
 

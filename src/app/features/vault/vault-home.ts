@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import type { VaultItem } from '../../core/models/vault.models';
 import { VaultStore } from '../../core/services/vault.store';
 import { AppIcon } from '../../shared/components/app-icon';
 import { VaultItemCard } from '../../shared/components/vault-item-card';
@@ -13,6 +14,10 @@ import { CredentialNotificationService } from '../../core/services/credential-no
   imports: [RouterLink, AppIcon, VaultItemCard, VaultItemDetails, ConfirmationDialog],
   templateUrl: './vault-home.html',
   styleUrl: './vault-home.scss',
+  host: {
+    '(document:keydown.escape)': 'closeAddMenu()',
+    '(document:pointerdown)': 'outsidePointerDown($event)',
+  },
 })
 export class VaultHome {
   readonly vault = inject(VaultStore);
@@ -20,7 +25,11 @@ export class VaultHome {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly notifications = inject(CredentialNotificationService);
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   readonly addOpen = signal(false);
+  readonly templateToDelete = signal<VaultItem | null>(null);
+  readonly resetTemplatesOpen = signal(false);
+  readonly templateBusy = signal(false);
   readonly filterOpen = signal(false);
   readonly sortOrder = signal<'UPDATED_DESC' | 'TITLE_ASC' | 'TITLE_DESC'>('UPDATED_DESC');
   readonly cleanTrashOpen = signal(false);
@@ -30,6 +39,9 @@ export class VaultHome {
   readonly batchBusy = signal(false);
   readonly batchMessage = signal('');
   readonly selectionMode = computed(() => this.selectedIds().size > 0);
+  readonly customTemplates = computed(() =>
+    this.vault.items().filter((item) => item.template === true),
+  );
   readonly selectedItems = computed(() => {
     const selected = this.selectedIds();
     return this.vault.items().filter((item) => selected.has(item.id));
@@ -112,6 +124,49 @@ export class VaultHome {
     this.vault.selectedId.set(id);
     if (this.document.defaultView?.matchMedia('(max-width: 780px)').matches) {
       await this.router.navigate(['/vault/item', id]);
+    }
+  }
+  closeAddMenu(): void {
+    this.addOpen.set(false);
+  }
+  outsidePointerDown(event: PointerEvent): void {
+    if (!this.addOpen()) return;
+    const target = event.target;
+    const menu = this.element.nativeElement.querySelector('.fab-wrap');
+    if (!(target instanceof Node) || !menu?.contains(target)) this.closeAddMenu();
+  }
+  confirmTemplateDelete(template: VaultItem): void {
+    this.templateToDelete.set(template);
+  }
+  async deleteTemplate(): Promise<void> {
+    const template = this.templateToDelete();
+    if (!template || this.templateBusy()) return;
+    this.templateBusy.set(true);
+    try {
+      await this.vault.deletePermanently(template.id);
+      this.templateToDelete.set(null);
+      this.showBatchMessage('Custom template deleted. Existing credentials were not changed.');
+    } catch {
+      this.showBatchMessage('The custom template could not be deleted.');
+    } finally {
+      this.templateBusy.set(false);
+    }
+  }
+  async resetTemplates(): Promise<void> {
+    if (this.templateBusy()) return;
+    this.templateBusy.set(true);
+    try {
+      const templates = this.customTemplates();
+      for (const template of templates) await this.vault.deletePermanently(template.id);
+      this.resetTemplatesOpen.set(false);
+      this.closeAddMenu();
+      this.showBatchMessage(
+        `${templates.length} custom ${templates.length === 1 ? 'template' : 'templates'} removed. App templates remain.`,
+      );
+    } catch {
+      this.showBatchMessage('Custom templates could not be fully reset.');
+    } finally {
+      this.templateBusy.set(false);
     }
   }
   toggleSelection(id: string): void {
