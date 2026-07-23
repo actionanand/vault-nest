@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import type { VaultItem } from '../../core/models/vault.models';
@@ -23,9 +23,13 @@ import { VaultItemIcon } from '../../shared/components/vault-item-icon';
   ],
   templateUrl: './vault-item-details.html',
   styleUrl: './vault-item-details.scss',
-  host: { '(document:keydown.escape)': 'closeOverlays()' },
+  host: {
+    '(document:keydown.escape)': 'closeOverlays()',
+    '(document:pointerdown)': 'outsidePointerDown($event)',
+  },
 })
 export class VaultItemDetails {
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly vault = inject(VaultStore);
   private readonly router = inject(Router);
   private readonly clipboard = inject(ClipboardService);
@@ -277,6 +281,12 @@ export class VaultItemDetails {
     this.unarchiveDialogOpen.set(false);
     this.shareDialogOpen.set(false);
     this.backupCodesDialogOpen.set(false);
+  }
+  outsidePointerDown(event: PointerEvent): void {
+    if (!this.menuOpen()) return;
+    const target = event.target;
+    const menu = this.element.nativeElement.querySelector('.menu-wrap');
+    if (!(target instanceof Node) || !menu?.contains(target)) this.menuOpen.set(false);
   }
 
   private labelsFromControl(): readonly string[] {

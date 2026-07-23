@@ -184,6 +184,13 @@
             ><small>Select a .vaultpack file and replace this vault</small></span
           ></span
         ><app-icon name="chevron_down" /></button
+      ><button type="button" (click)="csvExportConfirmationOpen.set(true)">
+        <span
+          ><app-icon name="csv" /><span
+            ><strong>Export as CSV</strong
+            ><small>Save readable credentials for import into another app</small></span
+          ></span
+        ><app-icon name="chevron_down" /></button
       ><button type="button" (click)="openTrashRetention()">
         <span
           ><app-icon name="archive" /><span
@@ -213,6 +220,19 @@
   @if (message()) {
     <span class="toast" role="status">{{ message() }}</span>
   }
+  <app-confirmation-dialog
+    [open]="csvExportConfirmationOpen()"
+    [busy]="csvExportBusy()"
+    dialogId="export-plaintext-csv"
+    title="Export readable credentials as CSV?"
+    message="The CSV is not encrypted. It includes passwords, PINs, secrets, one-time passwords, backup codes, notes, archived credentials, and every custom field in readable form. Any app or person with access to the saved file can read them. Trashed items and templates are not exported."
+    acknowledgementLabel="I understand that this CSV contains my sensitive vault data in plaintext."
+    confirmLabel="Export plaintext CSV"
+    busyLabel="Preparing CSV…"
+    iconName="csv"
+    (cancelled)="csvExportConfirmationOpen.set(false)"
+    (confirmed)="exportCsv()"
+  />
   <app-confirmation-dialog
     [open]="clearDatabaseOpen()"
     [busy]="clearingDatabase()"

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { unlockedGuard } from './core/guards/unlocked.guard';
 import { lockedGuard, setupGuard } from './core/guards/setup.guard';
+import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 
 export const routes: Routes = [
   {
@@ -64,16 +65,19 @@ export const routes: Routes = [
       },
       {
         path: 'new/template/:id',
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () =>
           import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
       },
       {
         path: 'new/:type',
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () =>
           import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
       },
       {
         path: 'edit/:id',
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () =>
           import('./features/item-editor/item-editor').then((module) => module.ItemEditor),
       },

@@ -25,6 +25,15 @@ export class VaultHome {
   readonly sortOrder = signal<'UPDATED_DESC' | 'TITLE_ASC' | 'TITLE_DESC'>('UPDATED_DESC');
   readonly cleanTrashOpen = signal(false);
   readonly cleaningTrash = signal(false);
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  readonly batchDeleteOpen = signal(false);
+  readonly batchBusy = signal(false);
+  readonly batchMessage = signal('');
+  readonly selectionMode = computed(() => this.selectedIds().size > 0);
+  readonly selectedItems = computed(() => {
+    const selected = this.selectedIds();
+    return this.vault.items().filter((item) => selected.has(item.id));
+  });
   readonly favouritesOnly = this.route.snapshot.data['favourites'] === true;
   readonly weakPasswordsOnly = this.route.snapshot.data['weakPasswords'] === true;
   readonly scope = this.route.snapshot.data['scope'] as 'ARCHIVE' | 'TRASH' | undefined;
@@ -104,6 +113,70 @@ export class VaultHome {
     if (this.document.defaultView?.matchMedia('(max-width: 780px)').matches) {
       await this.router.navigate(['/vault/item', id]);
     }
+  }
+  toggleSelection(id: string): void {
+    this.selectedIds.update((selected) => {
+      const next = new Set(selected);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+  async addSelectionToFavourites(): Promise<void> {
+    if (this.batchBusy()) return;
+    this.batchBusy.set(true);
+    try {
+      const items = this.selectedItems();
+      for (const item of items) {
+        if (item.favourite) continue;
+        await this.vault.save(
+          { ...item, favourite: true, updatedAt: new Date().toISOString() },
+          { select: false },
+        );
+      }
+      this.clearSelection();
+      this.showBatchMessage(
+        `${items.length} ${items.length === 1 ? 'item' : 'items'} added to favourites.`,
+      );
+    } finally {
+      this.batchBusy.set(false);
+    }
+  }
+  async deleteSelection(): Promise<void> {
+    if (this.batchBusy()) return;
+    this.batchBusy.set(true);
+    try {
+      const items = this.selectedItems();
+      if (this.scope === 'TRASH') {
+        for (const item of items) await this.vault.deletePermanently(item.id);
+      } else {
+        for (const item of items) {
+          await this.vault.save(
+            { ...item, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            { select: false },
+          );
+        }
+      }
+      await this.notifications.clearCopyShortcuts();
+      this.batchDeleteOpen.set(false);
+      this.clearSelection();
+      this.showBatchMessage(
+        `${items.length} ${items.length === 1 ? 'item' : 'items'} ${
+          this.scope === 'TRASH' ? 'deleted permanently' : 'moved to Trash'
+        }.`,
+      );
+    } finally {
+      this.batchBusy.set(false);
+    }
+  }
+  private showBatchMessage(message: string): void {
+    this.batchMessage.set(message);
+    setTimeout(() => {
+      if (this.batchMessage() === message) this.batchMessage.set('');
+    }, 2400);
   }
   private isType(value: string | null): value is 'LOGIN' | 'NOTE' | 'IDENTITY' | 'WIFI' | 'CUSTOM' {
     return value !== null && ['LOGIN', 'NOTE', 'IDENTITY', 'WIFI', 'CUSTOM'].includes(value);

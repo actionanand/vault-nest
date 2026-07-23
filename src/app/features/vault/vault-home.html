@@ -2,10 +2,45 @@
   <div class="list-pane">
     <header class="pane-header">
       <div>
-        <p class="eyebrow">My vault</p>
-        <h1>{{ title }}</h1>
+        @if (selectionMode()) {
+          <p class="eyebrow">Selection</p>
+          <h1>{{ selectedIds().size }} selected</h1>
+        } @else {
+          <p class="eyebrow">My vault</p>
+          <h1>{{ title }}</h1>
+        }
       </div>
       <div class="header-actions">
+        @if (selectionMode()) {
+          @if (scope !== 'TRASH') {
+            <button
+              class="icon-button batch-favourite"
+              type="button"
+              aria-label="Add selected items to favourites"
+              [disabled]="batchBusy()"
+              (click)="addSelectionToFavourites()"
+            >
+              <app-icon class="filled" name="favourite" />
+            </button>
+          }
+          <button
+            class="icon-button danger-filter"
+            type="button"
+            aria-label="Delete selected items"
+            [disabled]="batchBusy()"
+            (click)="batchDeleteOpen.set(true)"
+          >
+            <app-icon name="trash" />
+          </button>
+          <button
+            class="icon-button clear-selection"
+            type="button"
+            aria-label="Clear item selection"
+            (click)="clearSelection()"
+          >
+            <app-icon name="close" />
+          </button>
+        }
         @if (scope === 'TRASH' && vault.trashedItems().length) {
           <button
             class="icon-button danger-filter"
@@ -88,8 +123,11 @@
       @for (item of items(); track item.id) {
         <app-vault-item-card
           [item]="item"
-          [selected]="selectedItem()?.id === item.id"
+          [active]="!selectionMode() && selectedItem()?.id === item.id"
+          [selected]="selectedIds().has(item.id)"
+          [selectionMode]="selectionMode()"
           (chosen)="chooseItem($event)"
+          (selectionToggled)="toggleSelection($event)"
         />
       } @empty {
         <div class="empty">
@@ -121,7 +159,7 @@
       </div>
     }
   </aside>
-  <div class="fab-wrap">
+  <div class="fab-wrap" [class.hidden]="selectionMode()">
     <button
       class="fab"
       type="button"
@@ -162,4 +200,31 @@
     (cancelled)="cleanTrashOpen.set(false)"
     (confirmed)="cleanTrash()"
   />
+  <app-confirmation-dialog
+    [open]="batchDeleteOpen()"
+    [busy]="batchBusy()"
+    dialogId="batch-delete-items"
+    [title]="
+      scope === 'TRASH' ? 'Permanently delete selected items?' : 'Move selected items to Trash?'
+    "
+    [message]="
+      selectedIds().size +
+      (selectedIds().size === 1 ? ' selected item ' : ' selected items ') +
+      (scope === 'TRASH'
+        ? 'will be permanently deleted and cannot be recovered.'
+        : 'will leave the active vault and can be restored from Trash during the retention period.')
+    "
+    [acknowledgementLabel]="
+      scope === 'TRASH'
+        ? 'I understand that the selected items cannot be recovered.'
+        : 'I understand that the selected items will be moved to Trash.'
+    "
+    [confirmLabel]="scope === 'TRASH' ? 'Delete permanently' : 'Move to Trash'"
+    busyLabel="Updating items…"
+    (cancelled)="batchDeleteOpen.set(false)"
+    (confirmed)="deleteSelection()"
+  />
+  @if (batchMessage()) {
+    <div class="batch-toast" role="status">{{ batchMessage() }}</div>
+  }
 </section>

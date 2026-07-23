@@ -13,6 +13,7 @@ import { PasswordGeneratorService } from '../../core/services/password-generator
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
+import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
 
 type FieldForm = FormGroup<{
   id: FormControl<string>;
@@ -28,6 +29,26 @@ interface FieldTypeOption {
   readonly defaultName: string;
   readonly sensitive: boolean;
 }
+
+const FIELD_TYPE_ICONS: Readonly<Record<VaultFieldType, string>> = {
+  TEXT: 'field_text',
+  MULTILINE: 'note',
+  NUMBER: 'field_number',
+  USERNAME: 'identity',
+  PASSWORD: 'key',
+  OTP: 'key',
+  EXPIRY: 'calendar',
+  WEBSITE: 'globe',
+  EMAIL: 'field_email',
+  PHONE: 'field_phone',
+  DATE: 'calendar',
+  PIN: 'key',
+  SECRET: 'key',
+  APPLICATION: 'globe',
+  BOOLEAN: 'field_toggle',
+  DROPDOWN: 'chevron_down',
+  HIDDEN: 'eye_off',
+};
 
 const FIELD_TYPES: readonly FieldTypeOption[] = [
   { type: 'TEXT', label: 'Text', defaultName: 'Text', sensitive: false },
@@ -61,9 +82,19 @@ const FIELD_TYPES: readonly FieldTypeOption[] = [
 
 @Component({
   selector: 'app-item-editor',
-  imports: [ReactiveFormsModule, RouterLink, AppIcon, VaultItemIcon, ConfirmationDialog],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    AppIcon,
+    VaultItemIcon,
+    ConfirmationDialog,
+    SelectPicker,
+  ],
   templateUrl: './item-editor.html',
   styleUrl: './item-editor.scss',
+  host: {
+    '(window:beforeunload)': 'protectBrowserUnload($event)',
+  },
 })
 export class ItemEditor implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -92,6 +123,12 @@ export class ItemEditor implements OnInit {
     fields: new FormArray<FieldForm>([]),
   });
   readonly fieldTypes = FIELD_TYPES;
+  readonly fieldTypePickerOptions: readonly SelectPickerOption[] = FIELD_TYPES.map((option) => ({
+    value: option.type,
+    label: option.label,
+    detail: option.sensitive ? 'Hidden by default' : option.defaultName,
+    icon: FIELD_TYPE_ICONS[option.type],
+  }));
   readonly iconPresets = [
     { value: '', label: 'Automatic', icon: 'globe' },
     { value: 'preset:key', label: 'Login', icon: 'key' },
@@ -107,6 +144,7 @@ export class ItemEditor implements OnInit {
   readonly iconDialogOpen = signal(false);
   readonly deleteDialogOpen = signal(false);
   readonly deleting = signal(false);
+  readonly discardDialogOpen = signal(false);
   readonly fieldMessage = signal('');
   readonly textTab = signal<'NOTES' | 'BACKUP_CODES'>('NOTES');
   readonly backupCodesVisible = signal(false);
@@ -123,6 +161,8 @@ export class ItemEditor implements OnInit {
       validators: [Validators.maxLength(20_000)],
     }),
   });
+  private deactivateResolver: ((allow: boolean) => void) | null = null;
+  private deactivatePromise: Promise<boolean> | null = null;
   get fields(): FormArray<FieldForm> {
     return this.form.controls.fields;
   }
@@ -169,14 +209,17 @@ export class ItemEditor implements OnInit {
         sensitive: option.sensitive,
       }),
     );
+    this.form.markAsDirty();
     this.addDialogOpen.set(false);
     this.addFieldForm.reset({ label: 'Text', value: '' });
   }
   removeField(index: number): void {
     this.fields.removeAt(index);
+    this.form.markAsDirty();
   }
   duplicateField(index: number): void {
     this.fields.insert(index + 1, this.createField(this.fields.at(index).getRawValue()));
+    this.form.markAsDirty();
   }
   move(index: number, offset: -1 | 1): void {
     const target = index + offset;
@@ -184,6 +227,7 @@ export class ItemEditor implements OnInit {
     const field = this.fields.at(index);
     this.fields.removeAt(index);
     this.fields.insert(target, field);
+    this.form.markAsDirty();
   }
   async save(): Promise<void> {
     if (this.form.invalid) {
@@ -237,24 +281,20 @@ export class ItemEditor implements OnInit {
   fieldTypeLabel(type: VaultFieldType): string {
     return this.fieldOption(type).label;
   }
-  fieldTypeChanged(index: number): void {
+  setFieldType(index: number, value: string): void {
+    if (!FIELD_TYPES.some((option) => option.type === value)) return;
     const field = this.fields.at(index);
+    field.controls.type.setValue(value as VaultFieldType);
     field.controls.sensitive.setValue(this.fieldOption(field.controls.type.value).sensitive);
+    this.form.markAsDirty();
   }
   fieldTypeIcon(type: VaultFieldType): string {
-    if (['PASSWORD', 'PIN', 'SECRET', 'OTP', 'HIDDEN'].includes(type)) return 'key';
-    if (['WEBSITE', 'APPLICATION'].includes(type)) return 'globe';
-    if (['DATE', 'EXPIRY'].includes(type)) return 'calendar';
-    if (type === 'EMAIL') return 'field_email';
-    if (type === 'PHONE') return 'field_phone';
-    if (type === 'NUMBER') return 'field_number';
-    if (type === 'USERNAME') return 'identity';
-    if (type === 'BOOLEAN') return 'field_toggle';
-    return 'field_text';
+    return FIELD_TYPE_ICONS[type];
   }
   toggleSensitive(index: number): void {
     const control = this.fields.at(index).controls.sensitive;
     control.setValue(!control.value);
+    this.form.markAsDirty();
     this.showFieldMessage(
       control.value ? 'Field will be hidden by default.' : 'Field will be visible by default.',
     );
@@ -276,6 +316,35 @@ export class ItemEditor implements OnInit {
   activeTextControl(): FormControl<string> {
     return this.textTab() === 'NOTES' ? this.form.controls.notes : this.form.controls.backupCodes;
   }
+  canDeactivate(): boolean | Promise<boolean> {
+    if (!this.form.dirty) return true;
+    if (this.deactivatePromise) return this.deactivatePromise;
+    this.discardDialogOpen.set(true);
+    this.deactivatePromise = new Promise<boolean>((resolve) => {
+      this.deactivateResolver = resolve;
+    });
+    return this.deactivatePromise;
+  }
+  confirmDiscard(): void {
+    this.discardDialogOpen.set(false);
+    this.form.markAsPristine();
+    const resolver = this.deactivateResolver;
+    this.deactivateResolver = null;
+    this.deactivatePromise = null;
+    resolver?.(true);
+  }
+  cancelDiscard(): void {
+    this.discardDialogOpen.set(false);
+    const resolver = this.deactivateResolver;
+    this.deactivateResolver = null;
+    this.deactivatePromise = null;
+    resolver?.(false);
+  }
+  protectBrowserUnload(event: BeforeUnloadEvent): void {
+    if (!this.form.dirty) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }
   async deleteItem(): Promise<void> {
     if (!this.existing || this.deleting()) return;
     this.deleting.set(true);
@@ -286,6 +355,7 @@ export class ItemEditor implements OnInit {
         updatedAt: new Date().toISOString(),
       });
       this.deleteDialogOpen.set(false);
+      this.form.markAsPristine();
       await this.router.navigateByUrl('/vault/all');
     } finally {
       this.deleting.set(false);

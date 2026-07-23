@@ -70,20 +70,13 @@
               aria-label="Field name"
               placeholder="Field name"
             />
-            <label class="type-control desktop-type-control">
-              <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
-              <span class="sr-only">Field type</span>
-              <select
-                formControlName="type"
-                (change)="fieldTypeChanged(index)"
-                aria-label="Field type"
-                title="Change field type"
-              >
-                @for (option of fieldTypes; track option.type) {
-                  <option [value]="option.type">{{ option.label }}</option>
-                }
-              </select>
-            </label>
+            <app-select-picker
+              class="desktop-type-control"
+              sheetTitle="Choose field type"
+              [value]="field.controls.type.value"
+              [options]="fieldTypePickerOptions"
+              (valueChange)="setFieldType(index, $event)"
+            />
             <button
               class="icon-button danger"
               type="button"
@@ -131,20 +124,14 @@
 
           <div class="field-footer">
             <div class="field-actions">
-              <label class="type-control mobile-type-control">
-                <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
-                <span class="sr-only">Field type</span>
-                <select
-                  formControlName="type"
-                  (change)="fieldTypeChanged(index)"
-                  aria-label="Field type"
-                  title="Change field type"
-                >
-                  @for (option of fieldTypes; track option.type) {
-                    <option [value]="option.type">{{ option.label }}</option>
-                  }
-                </select>
-              </label>
+              <app-select-picker
+                class="mobile-type-control"
+                sheetTitle="Choose field type"
+                [compact]="true"
+                [value]="field.controls.type.value"
+                [options]="fieldTypePickerOptions"
+                (valueChange)="setFieldType(index, $event)"
+              />
               <button
                 class="icon-button"
                 type="button"
@@ -430,6 +417,18 @@
   busyLabel="Moving to Trash…"
   (cancelled)="deleteDialogOpen.set(false)"
   (confirmed)="deleteItem()"
+/>
+
+<app-confirmation-dialog
+  [open]="discardDialogOpen()"
+  dialogId="discard-item-changes"
+  title="Discard unsaved changes?"
+  message="Changes made on this page have not been saved. Leaving now will permanently discard them."
+  acknowledgementLabel="I understand that my unsaved changes will be lost."
+  confirmLabel="Discard and leave"
+  busyLabel="Leaving…"
+  (cancelled)="cancelDiscard()"
+  (confirmed)="confirmDiscard()"
 />
 
 @if (fieldMessage()) {

@@ -12,6 +12,7 @@ import { ClipboardService } from '../../core/services/clipboard.service';
 import { AuthStore } from '../../core/services/auth.store';
 import { IntrusionEvidenceService } from '../../core/services/intrusion-evidence.service';
 import { ScreenshotProtectionService } from '../../core/services/screenshot-protection.service';
+import { CsvExportService } from '../../core/services/csv-export.service';
 
 @Component({
   selector: 'app-settings',
@@ -24,6 +25,7 @@ export class Settings implements OnInit {
   private readonly vault = inject(VaultStore);
   private readonly credentialNotifications = inject(CredentialNotificationService);
   private readonly backup = inject(BackupService);
+  private readonly csvExport = inject(CsvExportService);
   private readonly clipboard = inject(ClipboardService);
   private readonly screenshotProtection = inject(ScreenshotProtectionService);
   readonly auth = inject(AuthStore);
@@ -47,6 +49,8 @@ export class Settings implements OnInit {
   readonly backupBusy = signal(false);
   readonly backupError = signal('');
   readonly restoreConfirmationOpen = signal(false);
+  readonly csvExportConfirmationOpen = signal(false);
+  readonly csvExportBusy = signal(false);
   readonly easyLoginDialogOpen = signal(false);
   readonly pendingEasyUnlockMode = signal<Exclude<EasyUnlockMode, 'DISABLED'> | null>(null);
   readonly easyLoginPassword = signal('');
@@ -281,6 +285,21 @@ export class Settings implements OnInit {
       );
     } finally {
       this.backupBusy.set(false);
+    }
+  }
+  async exportCsv(): Promise<void> {
+    this.csvExportBusy.set(true);
+    try {
+      const result = await this.csvExport.export();
+      this.csvExportConfirmationOpen.set(false);
+      this.message.set(
+        `${result.count} ${result.count === 1 ? 'credential' : 'credentials'} exported as plaintext CSV`,
+      );
+      setTimeout(() => this.message.set(''), 2500);
+    } catch (error: unknown) {
+      this.message.set(error instanceof Error ? error.message : 'The CSV could not be exported.');
+    } finally {
+      this.csvExportBusy.set(false);
     }
   }
   async saveTrashRetention(): Promise<void> {

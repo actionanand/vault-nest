@@ -89,3 +89,9 @@ On Android, biometric unlock stores only an AES-GCM-wrapped vault key. Its wrapp
 ## Clipboard lifetime
 
 Vault Nest overwrites app-copied clipboard values after five minutes while its process remains alive. On Android, the native shell also schedules the same clipboard clear so it is not dependent only on Angular change detection or visiting Settings. Mobile operating systems may still kill the process, so this is a best-effort timeout rather than a guarantee; users can always use **Clear clipboard now**. Notification copy shortcuts use a shorter three-minute lifetime and are removed after expiry.
+
+## Batch actions and unsaved edits
+
+Long-press selection on touch devices and the web hover selector enter an explicit batch mode. Batch deletion always requires acknowledgement; active or archived items move to Trash, while deletion from Trash is permanent. Batch favourite only changes the favourite flag and never exposes decrypted field values.
+
+New and edit routes use a router-level deactivation guard. If the reactive form is dirty, navigation through the side navigation, bottom navigation, browser history, or a direct route change pauses for discard confirmation. Browser or tab unload also uses the platform unload warning. Successful saves and confirmed item deletion mark the form pristine before navigation.
