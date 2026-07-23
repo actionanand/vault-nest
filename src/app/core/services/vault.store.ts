@@ -68,7 +68,7 @@ export class VaultStore {
     }
   }
 
-  async save(item: VaultItem): Promise<void> {
+  async save(item: VaultItem, options: { readonly select?: boolean } = {}): Promise<void> {
     const encryptedPayload = await this.crypto.encryptJson(
       item,
       this.auth.getKey(),
@@ -91,7 +91,7 @@ export class VaultStore {
         b.updatedAt.localeCompare(a.updatedAt),
       ),
     );
-    this.selectedId.set(item.id);
+    if (options.select !== false) this.selectedId.set(item.id);
   }
 
   async toggleFavourite(item: VaultItem): Promise<void> {

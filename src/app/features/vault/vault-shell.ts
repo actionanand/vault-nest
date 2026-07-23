@@ -15,6 +15,7 @@ import {
   IntrusionEvidenceService,
   type IntrusionEvidenceEntry,
 } from '../../core/services/intrusion-evidence.service';
+import { WebsiteIconService } from '../../core/services/website-icon.service';
 
 @Component({
   selector: 'app-vault-shell',
@@ -45,6 +46,7 @@ export class VaultShell implements OnInit, OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly credentialNotifications = inject(CredentialNotificationService);
   private readonly backup = inject(BackupService);
+  private readonly websiteIcons = inject(WebsiteIconService);
   readonly intrusionEvidence = inject(IntrusionEvidenceService);
   private preferences: VaultPreferences = DEFAULT_PREFERENCES;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -68,6 +70,7 @@ export class VaultShell implements OnInit, OnDestroy {
       ...((await this.storage.getPreferences()) ?? {}),
     };
     await this.vault.load();
+    void this.websiteIcons.refreshMissing(this.vault.activeItems());
     this.intrusionEvidence.refresh();
     const newestEvidence = this.intrusionEvidence.entries()[0];
     if (newestEvidence) {

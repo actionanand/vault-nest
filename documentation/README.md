@@ -28,6 +28,7 @@ CI builds Angular, runs `cap add android`, synchronises Capacitor, and applies t
 - [Database and migrations](DATABASE.md)
 - [Android release build guide](ANDROID.md)
 - [Android and CI/CD implementation notes](ANDROID_CI.md)
+- [Android splash and credential notification special cases](ANDROID_SPECIAL_CASES.md)
 - [Encrypted backup and restore](BACKUP_RESTORE.md)
 - [Development guide](DEVELOPMENT.md)
 - [Implementation status and roadmap](IMPLEMENTATION_STATUS.md)

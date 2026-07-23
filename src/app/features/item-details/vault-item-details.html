@@ -28,7 +28,7 @@
   </div>
 
   <header class="detail-header">
-    <span class="hero-icon"><app-icon [name]="iconName(item())" /></span>
+    <span class="hero-icon"><app-vault-item-icon [item]="item()" /></span>
     <div>
       <p>{{ item().type.replace('_', ' ') }}</p>
       <h2>{{ item().title }}</h2>
@@ -46,6 +46,18 @@
           [class.filled]="item().favourite"
         />
       </button>
+      @if (canRefreshIcon(item())) {
+        <button
+          class="icon-button"
+          type="button"
+          (click)="refreshIcon()"
+          [disabled]="refreshingIcon()"
+          aria-label="Refresh icon from first website"
+          title="Refresh icon from first website"
+        >
+          <app-icon name="restore" />
+        </button>
+      }
       <div class="menu-wrap">
         <button
           class="icon-button"

@@ -8,10 +8,19 @@ import { AppIcon } from '../../shared/components/app-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { SecretField } from '../../shared/components/secret-field';
 import { ClipboardService } from '../../core/services/clipboard.service';
+import { WebsiteIconService } from '../../core/services/website-icon.service';
+import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 
 @Component({
   selector: 'app-vault-item-details',
-  imports: [ReactiveFormsModule, RouterLink, AppIcon, ConfirmationDialog, SecretField],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    AppIcon,
+    ConfirmationDialog,
+    SecretField,
+    VaultItemIcon,
+  ],
   templateUrl: './vault-item-details.html',
   styleUrl: './vault-item-details.scss',
   host: { '(document:keydown.escape)': 'closeOverlays()' },
@@ -20,6 +29,7 @@ export class VaultItemDetails {
   private readonly vault = inject(VaultStore);
   private readonly router = inject(Router);
   private readonly clipboard = inject(ClipboardService);
+  private readonly websiteIcons = inject(WebsiteIconService);
   readonly notifications = inject(CredentialNotificationService);
   readonly item = input.required<VaultItem>();
   readonly menuOpen = signal(false);
@@ -30,6 +40,7 @@ export class VaultItemDetails {
   readonly shareDialogOpen = signal(false);
   readonly shareSensitive = signal(false);
   readonly message = signal('');
+  readonly refreshingIcon = signal(false);
   readonly labelControl = new FormControl('', { nonNullable: true });
   readonly availableLabels = computed(() =>
     [...new Set(this.vault.items().flatMap((item) => item.labels))].sort((a, b) =>
@@ -37,10 +48,19 @@ export class VaultItemDetails {
     ),
   );
 
-  iconName(item: VaultItem): string {
-    return (
-      { LOGIN: 'key', NOTE: 'note', IDENTITY: 'identity', WIFI: 'wifi', CUSTOM: 'custom' } as const
-    )[item.type];
+  canRefreshIcon(item: VaultItem): boolean {
+    return this.websiteIcons.isAndroid() && Boolean(this.websiteIcons.firstWebsite(item));
+  }
+
+  async refreshIcon(): Promise<void> {
+    if (this.refreshingIcon()) return;
+    this.refreshingIcon.set(true);
+    try {
+      const refreshed = await this.websiteIcons.refreshItem(this.item());
+      this.showMessage(refreshed ? 'Website icon refreshed' : 'No website image was available');
+    } finally {
+      this.refreshingIcon.set(false);
+    }
   }
 
   openLabels(): void {

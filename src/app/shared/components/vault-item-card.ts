@@ -1,17 +1,18 @@
 import { Component, input, output } from '@angular/core';
 import type { VaultItem } from '../../core/models/vault.models';
 import { AppIcon } from './app-icon';
+import { VaultItemIcon } from './vault-item-icon';
 
 @Component({
   selector: 'app-vault-item-card',
-  imports: [AppIcon],
+  imports: [AppIcon, VaultItemIcon],
   template: `<button
     type="button"
     class="card"
     [class.selected]="selected()"
     (click)="chosen.emit(item().id)"
   >
-    <span class="item-icon"><app-icon [name]="iconName(item().type)" /></span
+    <span class="item-icon"><app-vault-item-icon [item]="item()" /></span
     ><span class="copy"
       ><strong>{{ item().title }}</strong
       ><small>{{ secondary(item()) }}</small></span
@@ -88,11 +89,6 @@ export class VaultItemCard {
   readonly item = input.required<VaultItem>();
   readonly selected = input(false);
   readonly chosen = output<string>();
-  iconName(type: VaultItem['type']): string {
-    return (
-      { LOGIN: 'key', NOTE: 'note', IDENTITY: 'identity', WIFI: 'wifi', CUSTOM: 'custom' } as const
-    )[type];
-  }
   secondary(item: VaultItem): string {
     return (
       item.fields.find((field) => ['USERNAME', 'EMAIL', 'WEBSITE'].includes(field.type))?.value ||
