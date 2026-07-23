@@ -200,6 +200,7 @@ public class MainActivity extends BridgeActivity {
   private static final int CREATE_BACKUP_REQUEST = 5101;
   private static final int OPEN_BACKUP_REQUEST = 5102;
   private static final int SAVE_EVIDENCE_REQUEST = 5103;
+  private static final int SAVE_CSV_REQUEST = 5104;
   private static final String KEY_ALIAS = "vault_nest_biometric_key";
   private static final String SECURITY_PREFERENCES = "vault_nest_security";
   private static final String EVIDENCE_KEY_ALIAS = "vault_nest_intrusion_evidence_key";
@@ -691,6 +692,22 @@ public class MainActivity extends BridgeActivity {
     }
 
     @JavascriptInterface
+    public void saveCsv(String fileName, String base64Data) {
+      runOnUiThread(() -> {
+        try {
+          pendingBackup = Base64.decode(base64Data, Base64.DEFAULT);
+          Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+          intent.addCategory(Intent.CATEGORY_OPENABLE);
+          intent.setType("text/csv");
+          intent.putExtra(Intent.EXTRA_TITLE, fileName);
+          startActivityForResult(intent, SAVE_CSV_REQUEST);
+        } catch (Exception error) {
+          dispatchNativeResult("csv-saved", false, "", error.getMessage());
+        }
+      });
+    }
+
+    @JavascriptInterface
     public void openBackup() {
       runOnUiThread(() -> {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -953,8 +970,12 @@ public class MainActivity extends BridgeActivity {
   @Override
   protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
-    if (requestCode != CREATE_BACKUP_REQUEST && requestCode != OPEN_BACKUP_REQUEST && requestCode != SAVE_EVIDENCE_REQUEST) return;
-    String action = requestCode == CREATE_BACKUP_REQUEST ? "backup-saved" : requestCode == OPEN_BACKUP_REQUEST ? "backup-opened" : "evidence-saved";
+    if (requestCode != CREATE_BACKUP_REQUEST && requestCode != OPEN_BACKUP_REQUEST && requestCode != SAVE_EVIDENCE_REQUEST && requestCode != SAVE_CSV_REQUEST) return;
+    String action = requestCode == CREATE_BACKUP_REQUEST
+      ? "backup-saved"
+      : requestCode == OPEN_BACKUP_REQUEST
+        ? "backup-opened"
+        : requestCode == SAVE_EVIDENCE_REQUEST ? "evidence-saved" : "csv-saved";
     if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
       pendingBackup = null;
       dispatchNativeResult(action, false, "", "File selection was cancelled.");
@@ -962,7 +983,7 @@ public class MainActivity extends BridgeActivity {
     }
     Uri uri = data.getData();
     try {
-      if (requestCode == CREATE_BACKUP_REQUEST || requestCode == SAVE_EVIDENCE_REQUEST) {
+      if (requestCode == CREATE_BACKUP_REQUEST || requestCode == SAVE_EVIDENCE_REQUEST || requestCode == SAVE_CSV_REQUEST) {
         try (OutputStream output = getContentResolver().openOutputStream(uri)) {
           if (output == null) throw new IllegalStateException("The selected file could not be opened.");
           output.write(pendingBackup);
