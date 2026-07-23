@@ -213,10 +213,64 @@
         Expiry date <span>Optional</span>
         <input type="date" formControlName="expiresAt" />
       </label>
-      <label>
-        Notes <span>Optional</span>
-        <textarea formControlName="notes" rows="6" placeholder="Plain text notes"></textarea>
-      </label>
+      <div class="text-panel">
+        <div class="text-tabs" role="tablist" aria-label="Additional information">
+          <button
+            id="notes-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="textTab() === 'NOTES'"
+            aria-controls="shared-text-area"
+            [class.active]="textTab() === 'NOTES'"
+            (click)="selectTextTab('NOTES')"
+          >
+            Notes
+          </button>
+          <button
+            id="backup-codes-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="textTab() === 'BACKUP_CODES'"
+            aria-controls="shared-text-area"
+            [class.active]="textTab() === 'BACKUP_CODES'"
+            (click)="selectTextTab('BACKUP_CODES')"
+          >
+            2FA backup codes
+          </button>
+        </div>
+        <div class="shared-text-heading">
+          <label for="shared-text-area">
+            {{ textTab() === 'NOTES' ? 'Notes' : '2FA backup codes' }}
+            <span>Optional</span>
+          </label>
+          @if (textTab() === 'BACKUP_CODES') {
+            <button
+              class="icon-button"
+              type="button"
+              [attr.aria-pressed]="backupCodesVisible()"
+              [attr.aria-label]="backupCodesVisible() ? 'Hide backup codes' : 'Show backup codes'"
+              (click)="toggleBackupCodesVisibility()"
+            >
+              <app-icon [name]="backupCodesVisible() ? 'eye' : 'eye_off'" />
+            </button>
+          }
+        </div>
+        <textarea
+          id="shared-text-area"
+          rows="6"
+          [formControl]="activeTextControl()"
+          [class.concealed]="textTab() === 'BACKUP_CODES' && !backupCodesVisible()"
+          [attr.aria-labelledby]="textTab() === 'NOTES' ? 'notes-tab' : 'backup-codes-tab'"
+          [placeholder]="
+            textTab() === 'NOTES'
+              ? 'Plain text notes'
+              : 'Enter one recovery or backup code per line'
+          "
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        ></textarea>
+      </div>
     </section>
 
     <div class="form-footer">

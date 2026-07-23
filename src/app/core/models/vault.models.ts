@@ -35,6 +35,7 @@ export interface VaultItem {
   readonly icon: string;
   readonly fields: readonly VaultField[];
   readonly notes: string;
+  readonly backupCodes?: string;
   readonly labels: readonly string[];
   readonly favourite: boolean;
   readonly archived: boolean;

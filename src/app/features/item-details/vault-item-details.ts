@@ -38,6 +38,7 @@ export class VaultItemDetails {
   readonly archiveDialogOpen = signal(false);
   readonly unarchiveDialogOpen = signal(false);
   readonly shareDialogOpen = signal(false);
+  readonly backupCodesDialogOpen = signal(false);
   readonly shareSensitive = signal(false);
   readonly message = signal('');
   readonly refreshingIcon = signal(false);
@@ -47,7 +48,6 @@ export class VaultItemDetails {
       a.localeCompare(b),
     ),
   );
-
   canRefreshIcon(item: VaultItem): boolean {
     return this.websiteIcons.isAndroid() && Boolean(this.websiteIcons.firstWebsite(item));
   }
@@ -137,6 +137,7 @@ export class VaultItemDetails {
       createdAt: now,
       updatedAt: now,
       lastViewedAt: undefined,
+      backupCodes: undefined,
       fields: this.item().fields.map((field) => ({
         ...field,
         id: crypto.randomUUID(),
@@ -220,6 +221,12 @@ export class VaultItemDetails {
       this.shareSensitive() ? 'All item details copied' : 'Non-sensitive item details copied',
     );
   }
+  async copyBackupCodes(): Promise<void> {
+    const codes = this.item().backupCodes?.trim();
+    if (!codes) return;
+    await this.clipboard.copy(codes, '2FA backup codes');
+    this.showMessage('2FA backup codes copied. Clipboard clears in 5 minutes.');
+  }
 
   async shareDetails(): Promise<void> {
     const text = this.shareText();
@@ -250,6 +257,9 @@ export class VaultItemDetails {
       ...fields.map((field) => `${field.label}: ${field.value}`),
       ...(this.item().labels.length ? [`Labels: ${this.item().labels.join(', ')}`] : []),
       ...(includeSensitive && this.item().notes ? [`Notes: ${this.item().notes}`] : []),
+      ...(includeSensitive && this.item().backupCodes
+        ? [`2FA backup codes:\n${this.item().backupCodes}`]
+        : []),
       ...(!includeSensitive ? ['Sensitive values were omitted by Vault Nest.'] : []),
     ].join('\n');
     return text;
@@ -266,6 +276,7 @@ export class VaultItemDetails {
     this.archiveDialogOpen.set(false);
     this.unarchiveDialogOpen.set(false);
     this.shareDialogOpen.set(false);
+    this.backupCodesDialogOpen.set(false);
   }
 
   private labelsFromControl(): readonly string[] {

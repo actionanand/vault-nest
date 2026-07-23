@@ -81,6 +81,10 @@ export class ItemEditor implements OnInit {
       validators: [Validators.required, Validators.maxLength(160)],
     }),
     notes: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(20_000)] }),
+    backupCodes: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(20_000)],
+    }),
     labels: new FormControl('', { nonNullable: true }),
     favourite: new FormControl(false, { nonNullable: true }),
     expiresAt: new FormControl('', { nonNullable: true }),
@@ -104,6 +108,8 @@ export class ItemEditor implements OnInit {
   readonly deleteDialogOpen = signal(false);
   readonly deleting = signal(false);
   readonly fieldMessage = signal('');
+  readonly textTab = signal<'NOTES' | 'BACKUP_CODES'>('NOTES');
+  readonly backupCodesVisible = signal(false);
   readonly pendingFieldType = signal<VaultFieldType>('TEXT');
   readonly customIconError = signal('');
   readonly strengthSegments = [1, 2, 3, 4] as const;
@@ -191,6 +197,7 @@ export class ItemEditor implements OnInit {
       type: this.existing?.type ?? this.type,
       title: value.title.trim(),
       notes: value.notes,
+      backupCodes: value.backupCodes || undefined,
       labels: value.labels
         .split(',')
         .map((label) => label.trim())
@@ -256,6 +263,18 @@ export class ItemEditor implements OnInit {
     const control = this.form.controls.favourite;
     control.setValue(!control.value);
     control.markAsDirty();
+  }
+  selectTextTab(tab: 'NOTES' | 'BACKUP_CODES'): void {
+    this.textTab.set(tab);
+  }
+  toggleBackupCodesVisibility(): void {
+    this.backupCodesVisible.update((visible) => !visible);
+    this.showFieldMessage(
+      this.backupCodesVisible() ? '2FA backup codes are visible.' : '2FA backup codes are hidden.',
+    );
+  }
+  activeTextControl(): FormControl<string> {
+    return this.textTab() === 'NOTES' ? this.form.controls.notes : this.form.controls.backupCodes;
   }
   async deleteItem(): Promise<void> {
     if (!this.existing || this.deleting()) return;
@@ -357,6 +376,7 @@ export class ItemEditor implements OnInit {
     this.form.patchValue({
       title: item.title,
       notes: item.notes,
+      backupCodes: item.backupCodes ?? '',
       labels: item.labels.join(', '),
       favourite: item.favourite,
       expiresAt: item.expiresAt ?? '',
@@ -368,6 +388,7 @@ export class ItemEditor implements OnInit {
     this.form.patchValue({
       title: '',
       notes: '',
+      backupCodes: '',
       labels: item.labels.join(', '),
       favourite: false,
       expiresAt: '',

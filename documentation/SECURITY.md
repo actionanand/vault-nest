@@ -34,6 +34,8 @@ Copy actions write the selected value, announce what was copied, and schedule an
 
 The item Share dialog excludes notes, password, PIN, secret, OTP, hidden, and explicitly sensitive fields by default. Including them requires a deliberate checkbox selection and displays a warning before Copy or system Share. When included, those values become readable clipboard/share text outside Vault Nest's encryption boundary.
 
+Optional 2FA backup codes follow the same sensitive-data rule. The editor conceals them by default, reusable templates clear them, and Share includes them only after the user explicitly enables sensitive information.
+
 ### Android notification copy shortcuts
 
 The Android-only arrow-up-to-line action creates immediate native Android notifications for populated username, email, and password fields. Notification metadata and immutable pending intents contain only an ephemeral numeric lookup ID, not the credential value, vault item ID, or field ID.

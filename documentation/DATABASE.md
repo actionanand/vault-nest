@@ -24,6 +24,7 @@ SQLite database encryption is not treated as the security boundary. Sensitive fi
 - No component imports a platform database API.
 - No plaintext password or secret index is permitted.
 - Search includes decrypted in-memory values only during an unlocked session and excludes sensitive fields by default.
+- Optional 2FA backup codes are stored only as `VaultItem.backupCodes` inside the encrypted item payload. They do not add a plaintext SQLite column or require a database migration.
 - Record deletion should first set `deletedAt`; physical deletion belongs to confirmed trash cleanup.
 
 ## Clear operations
