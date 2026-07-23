@@ -100,9 +100,9 @@ Copy the single-line content of `keystore.b64.txt` into `KEYSTORE_BASE64`. Store
 3. CI increments `android-version.json`, commits it with `[skip ci]`, and pushes it using the workflow token.
 4. Angular builds `dist/vault-nest/browser`.
 5. Capacitor generates and syncs the Android project using `com.actionanand.vaultnest.app`.
-6. `scripts/patch-android.mjs` reads the generated Capacitor app ID and applies native backup/restore, biometric, intrusion-evidence, system-bar, and notification-icon patches to the matching Java package.
-7. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 35.
-8. ImageMagick generates padded launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
+6. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 35.
+7. ImageMagick generates padded launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
+8. `scripts/patch-android.mjs` reads the generated Capacitor app ID and applies native backup/restore, biometric, intrusion-evidence, launch-theme, system-bar, encrypted notification-copy, and notification-icon patches to the matching Java package.
 9. Gradle receives those version values as project properties and creates unsigned release APK/AAB inputs.
 10. If all signing secrets exist, CI decodes the keystore, detects its type, signs, and verifies both artifacts.
 11. If no keystore is available or signing fails, CI copies clearly named unsigned artifacts.
@@ -142,9 +142,9 @@ Vault Nest's Android shell is generated from Capacitor and patched by CI. The pa
 - Camera permission for opt-in intrusion evidence.
 - Light/dark system-bar handling for automatic, light, and dark themes.
 - A white transparent notification small icon named `ic_stat_vault_nest`.
-- A non-exported native credential-copy receiver for notification taps and Copy actions.
+- An Android Keystore-encrypted temporary credential store and non-exported, no-display copy activity for notification taps and Copy actions.
 
-Credential notification copy shortcuts use `@capacitor/local-notifications` for permission checks and native Android notifications for the copy action. Username, email, and password values are not placed in notification metadata or pending intents; they remain in app process memory for the short copy window and are cleared after expiry.
+Credential notification copy shortcuts use `@capacitor/local-notifications` for permission checks and native Android notifications for the copy action. Username, email, and password values are not placed in notification text or pending intents. They are AES-GCM encrypted with an Android Keystore key in app-private storage for the short copy window and deleted after expiry. Each notification uses a unique immutable pending intent, and its no-display activity writes the selected value with foreground clipboard authority before immediately returning to the other app.
 
 ## Local Android workflow
 

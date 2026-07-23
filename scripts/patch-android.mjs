@@ -19,7 +19,17 @@ async function fileExists(path) {
 }
 
 const activityPath = resolve('android/app/src/main/java', ...appId.split('.'), 'MainActivity.java');
-const receiverPath = resolve(
+const credentialCopyActivityPath = resolve(
+  'android/app/src/main/java',
+  ...appId.split('.'),
+  'CredentialCopyActivity.java',
+);
+const credentialShortcutStorePath = resolve(
+  'android/app/src/main/java',
+  ...appId.split('.'),
+  'CredentialShortcutStore.java',
+);
+const legacyCredentialReceiverPath = resolve(
   'android/app/src/main/java',
   ...appId.split('.'),
   'CredentialCopyReceiver.java',
@@ -56,12 +66,41 @@ if (!manifest.includes('android.permission.CAMERA')) {
   );
   await writeFile(manifestPath, manifest, 'utf8');
 }
-if (!manifest.includes('.CredentialCopyReceiver')) {
+manifest = manifest.replace(
+  /<activity\b(?=[^>]*android:name="\.MainActivity")[^>]*>/,
+  (activity) => {
+    if (activity.includes('android:theme=')) {
+      return activity.replace(
+        /android:theme="[^"]*"/,
+        'android:theme="@style/AppTheme.NoActionBarLaunch"',
+      );
+    }
+    return activity.replace(
+      />$/,
+      '\n            android:theme="@style/AppTheme.NoActionBarLaunch">',
+    );
+  },
+);
+manifest = manifest.replace(
+  /\s*<receiver\b(?=[^>]*android:name="\.CredentialCopyReceiver")[^>]*\/>/,
+  '',
+);
+if (!manifest.includes('.CredentialCopyActivity')) {
   manifest = manifest.replace(
     /(<\/application>)/,
-    '        <receiver android:name=".CredentialCopyReceiver" android:exported="false" />\n    $1',
+    `        <activity
+            android:name=".CredentialCopyActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/VaultNest.CredentialCopy" />
+    $1`,
   );
-  await writeFile(manifestPath, manifest, 'utf8');
+}
+await writeFile(manifestPath, manifest, 'utf8');
+if (await fileExists(legacyCredentialReceiverPath)) {
+  await rm(legacyCredentialReceiverPath);
 }
 
 let gradle = await readFile(gradlePath, 'utf8');
@@ -364,12 +403,17 @@ public class MainActivity extends BridgeActivity {
           String itemTitle = field.getString("itemTitle");
           String value = field.getString("value");
           ids.add(id);
-          CredentialCopyReceiver.registerShortcut(id, label, value, expiresAt);
-          Intent intent = new Intent(MainActivity.this, CredentialCopyReceiver.class)
-            .setAction(CredentialCopyReceiver.ACTION_COPY)
+          CredentialShortcutStore.put(MainActivity.this, id, label, value, expiresAt);
+          Intent intent = new Intent(MainActivity.this, CredentialCopyActivity.class)
+            .setAction(CredentialCopyActivity.ACTION_COPY)
             .setData(Uri.parse("vaultnest://credential-copy/" + id))
-            .putExtra(CredentialCopyReceiver.EXTRA_COPY_ID, id);
-          PendingIntent pendingIntent = PendingIntent.getBroadcast(
+            .putExtra(CredentialCopyActivity.EXTRA_COPY_ID, id)
+            .addFlags(
+              Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_NO_ANIMATION
+                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            );
+          PendingIntent pendingIntent = PendingIntent.getActivity(
             MainActivity.this,
             id,
             intent,
@@ -418,7 +462,7 @@ public class MainActivity extends BridgeActivity {
           for (String rawId : csvIds.split(",")) {
             try {
               int id = Integer.parseInt(rawId.trim());
-              CredentialCopyReceiver.clearShortcut(id);
+              CredentialShortcutStore.clear(MainActivity.this, id);
               manager.cancel(id);
             } catch (Exception ignored) { }
           }
@@ -768,63 +812,71 @@ public class MainActivity extends BridgeActivity {
 await writeFile(activityPath, source, 'utf8');
 
 await writeFile(
-  receiverPath,
+  credentialCopyActivityPath,
   `package ${appId};
 
+import android.app.Activity;
 import android.app.NotificationManager;
-import android.content.BroadcastReceiver;
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PersistableBundle;
 import android.widget.Toast;
 
-import java.util.concurrent.ConcurrentHashMap;
-
-public class CredentialCopyReceiver extends BroadcastReceiver {
+public class CredentialCopyActivity extends Activity {
   public static final String ACTION_COPY = "${appId}.COPY_CREDENTIAL";
   public static final String EXTRA_COPY_ID = "copy_id";
   private static final long CLIPBOARD_CLEAR_MS = 5L * 60L * 1000L;
   private static final Handler HANDLER = new Handler(Looper.getMainLooper());
-  private static final ConcurrentHashMap<Integer, CopyShortcut> SHORTCUTS = new ConcurrentHashMap<>();
   private static Runnable clipboardClearTask;
 
-  public static void registerShortcut(int id, String label, String value, long expiresAt) {
-    SHORTCUTS.put(id, new CopyShortcut(label, value, expiresAt));
-  }
-
-  public static void clearShortcut(int id) {
-    SHORTCUTS.remove(id);
-  }
-
   @Override
-  public void onReceive(Context context, Intent intent) {
-    if (intent == null || !ACTION_COPY.equals(intent.getAction())) return;
+  protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    Intent intent = getIntent();
+    if (intent == null || !ACTION_COPY.equals(intent.getAction())) {
+      finishWithoutAnimation();
+      return;
+    }
     int id = intent.getIntExtra(EXTRA_COPY_ID, -1);
-    CopyShortcut shortcut = SHORTCUTS.get(id);
-    if (shortcut == null || System.currentTimeMillis() >= shortcut.expiresAt) {
-      SHORTCUTS.remove(id);
-      cancelNotification(context, id);
-      Toast.makeText(context, "Credential shortcut expired", Toast.LENGTH_SHORT).show();
+    CredentialShortcutStore.Shortcut shortcut = id < 0
+      ? null
+      : CredentialShortcutStore.get(this, id);
+    if (shortcut == null) {
+      cancelNotification(id);
+      Toast.makeText(this, "Credential shortcut expired", Toast.LENGTH_SHORT).show();
+      finishWithoutAnimation();
       return;
     }
     try {
-      ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+      ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
       if (clipboard == null) throw new IllegalStateException("Clipboard unavailable");
-      clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
-      clipboard.setPrimaryClip(ClipData.newPlainText(shortcut.label, shortcut.value));
-      scheduleClipboardClear(context.getApplicationContext());
-      Toast.makeText(context, shortcut.label + " copied", Toast.LENGTH_SHORT).show();
+      ClipData clip = ClipData.newPlainText(shortcut.label, shortcut.value);
+      PersistableBundle extras = new PersistableBundle();
+      extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true);
+      clip.getDescription().setExtras(extras);
+      clipboard.setPrimaryClip(clip);
+      scheduleClipboardClear(getApplicationContext());
+      Toast.makeText(this, shortcut.label + " copied", Toast.LENGTH_SHORT).show();
     } catch (Exception error) {
-      Toast.makeText(context, "Credential could not be copied", Toast.LENGTH_SHORT).show();
+      Toast.makeText(this, "Credential could not be copied", Toast.LENGTH_SHORT).show();
     }
+    finishWithoutAnimation();
   }
 
-  private void cancelNotification(Context context, int id) {
-    NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+  private void cancelNotification(int id) {
+    NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
     if (manager != null) manager.cancel(id);
+  }
+
+  private void finishWithoutAnimation() {
+    finishAndRemoveTask();
+    overridePendingTransition(0, 0);
   }
 
   private static void scheduleClipboardClear(Context context) {
@@ -838,16 +890,129 @@ public class CredentialCopyReceiver extends BroadcastReceiver {
     };
     HANDLER.postDelayed(clipboardClearTask, CLIPBOARD_CLEAR_MS);
   }
+}
+`,
+  'utf8',
+);
 
-  private static class CopyShortcut {
+await writeFile(
+  credentialShortcutStorePath,
+  `package ${appId};
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+
+import org.json.JSONObject;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+
+final class CredentialShortcutStore {
+  private static final String KEYSTORE = "AndroidKeyStore";
+  private static final String KEY_ALIAS = "vault_nest_credential_shortcut_key";
+  private static final String PREFERENCES = "vault_nest_credential_shortcuts";
+
+  private CredentialShortcutStore() { }
+
+  static void put(
+    Context context,
+    int id,
+    String label,
+    String value,
+    long expiresAt
+  ) throws Exception {
+    JSONObject payload = new JSONObject()
+      .put("label", label)
+      .put("value", value)
+      .put("expiresAt", expiresAt);
+    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    cipher.init(Cipher.ENCRYPT_MODE, key());
+    byte[] encrypted = cipher.doFinal(payload.toString().getBytes(StandardCharsets.UTF_8));
+    byte[] iv = cipher.getIV();
+    ByteBuffer envelope = ByteBuffer.allocate(1 + iv.length + encrypted.length);
+    envelope.put((byte) iv.length);
+    envelope.put(iv);
+    envelope.put(encrypted);
+    boolean saved = preferences(context)
+      .edit()
+      .putString(String.valueOf(id), Base64.encodeToString(envelope.array(), Base64.NO_WRAP))
+      .commit();
+    if (!saved) throw new IllegalStateException("Credential shortcut could not be stored");
+  }
+
+  static Shortcut get(Context context, int id) {
+    String encoded = preferences(context).getString(String.valueOf(id), null);
+    if (encoded == null) return null;
+    try {
+      ByteBuffer envelope = ByteBuffer.wrap(Base64.decode(encoded, Base64.DEFAULT));
+      int ivLength = envelope.get() & 0xff;
+      if (ivLength < 12 || ivLength > 16 || envelope.remaining() <= ivLength) {
+        throw new IllegalStateException("Invalid credential shortcut envelope");
+      }
+      byte[] iv = new byte[ivLength];
+      envelope.get(iv);
+      byte[] encrypted = new byte[envelope.remaining()];
+      envelope.get(encrypted);
+      Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+      cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
+      JSONObject payload = new JSONObject(
+        new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8)
+      );
+      long expiresAt = payload.getLong("expiresAt");
+      if (System.currentTimeMillis() >= expiresAt) {
+        clear(context, id);
+        return null;
+      }
+      return new Shortcut(payload.getString("label"), payload.getString("value"));
+    } catch (Exception error) {
+      clear(context, id);
+      return null;
+    }
+  }
+
+  static void clear(Context context, int id) {
+    preferences(context).edit().remove(String.valueOf(id)).apply();
+  }
+
+  private static SharedPreferences preferences(Context context) {
+    return context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+  }
+
+  private static SecretKey key() throws Exception {
+    KeyStore keyStore = KeyStore.getInstance(KEYSTORE);
+    keyStore.load(null);
+    java.security.Key existing = keyStore.getKey(KEY_ALIAS, null);
+    if (existing instanceof SecretKey) return (SecretKey) existing;
+    KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE);
+    generator.init(
+      new KeyGenParameterSpec.Builder(
+        KEY_ALIAS,
+        KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT
+      )
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .setRandomizedEncryptionRequired(true)
+        .build()
+    );
+    return generator.generateKey();
+  }
+
+  static final class Shortcut {
     final String label;
     final String value;
-    final long expiresAt;
 
-    CopyShortcut(String label, String value, long expiresAt) {
+    Shortcut(String label, String value) {
       this.label = label;
       this.value = value;
-      this.expiresAt = expiresAt;
     }
   }
 }
@@ -928,16 +1093,31 @@ if (await fileExists(stylesPath)) {
       (_match, open, body, close) => `${open}${body}${systemBarItems}\n    ${close}`,
     );
   }
+  const launchTheme = `    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#111B21</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
+        <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:background">@drawable/splash</item>
+        <item name="android:statusBarColor">#111B21</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#111B21</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>`;
   styles = styles.replace(
-    /(<style name="AppTheme\.NoActionBarLaunch"[^>]*>)([\s\S]*?)(<\/style>)/,
-    (_match, open, body, close) => {
-      const splashItem = '        <item name="android:background">@drawable/splash</item>';
-      const patchedBody = body.match(/<item name="android:background">[\s\S]*?<\/item>/)
-        ? body.replace(/\s*<item name="android:background">[\s\S]*?<\/item>/, `\n${splashItem}`)
-        : `${body}${splashItem}\n`;
-      return `${open}${patchedBody}${close}`;
-    },
+    /\s*<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/,
+    `\n\n${launchTheme}`,
   );
+  const credentialCopyTheme = `    <style name="VaultNest.CredentialCopy" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowNoDisplay">true</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>`;
+  if (!styles.includes('name="VaultNest.CredentialCopy"')) {
+    styles = styles.replace('</resources>', `\n${credentialCopyTheme}\n</resources>`);
+  }
   await writeFile(stylesPath, styles, 'utf8');
 }
 
@@ -964,7 +1144,7 @@ await writeFile(
   v31StylesPath,
   `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#111B21</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
         <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>

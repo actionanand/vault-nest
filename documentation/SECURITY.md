@@ -32,13 +32,13 @@ The item Share dialog excludes notes, password, PIN, secret, OTP, hidden, and ex
 
 ### Android notification copy shortcuts
 
-The Android-only arrow-up-to-line action creates immediate native Android notifications for populated username, email, and password fields. Notification metadata and pending intents contain only an ephemeral numeric lookup ID, not the credential value, vault item ID, or field ID.
+The Android-only arrow-up-to-line action creates immediate native Android notifications for populated username, email, and password fields. Notification metadata and immutable pending intents contain only an ephemeral numeric lookup ID, not the credential value, vault item ID, or field ID.
 
-Sending the shortcuts creates an explicit three-minute exception for only the selected values. They are held in a process-memory map and copied by a non-exported Android broadcast receiver, so the user can tap the notification or its Copy action while filling another app without bringing Vault Nest to the foreground. Locking still clears the vault key and decrypted vault records; it is never deferred for this feature.
+Sending the shortcuts creates an explicit three-minute exception for only the selected values. Android Keystore AES-GCM encrypts them in app-private preferences, and a non-exported, no-display activity decrypts only the selected value when the user taps its notification. The activity receives foreground clipboard authority from the user-initiated notification tap, immediately finishes without showing Vault Nest, and returns focus to the app being filled. Locking still clears the vault key and decrypted vault records; it is never deferred for this feature.
 
-Every tap verifies the deadline before copying. At expiry, the in-memory map is cleared and Vault Nest attempts to cancel scheduled and delivered notifications. The Android shell also schedules native notification cancellation for the same three-minute expiry. Process termination or app restart destroys the map, so a stale notification has no credential to resolve. Clearing the vault database, removing the account, or automatic account deletion immediately invalidates the shortcuts.
+Every tap verifies the deadline before decrypting or copying. At expiry, the encrypted shortcut is deleted and Vault Nest attempts to cancel scheduled and delivered notifications. The Android shell also schedules native notification cancellation for the same three-minute expiry. Clearing the vault database, removing the account, or automatic account deletion immediately invalidates the shortcuts.
 
-JavaScript strings cannot be reliably zeroed in place, so this feature deliberately trades a bounded three-minute in-memory exposure for locked-vault notification copying. The copied value remains subject to the separate five-minute clipboard policy below.
+JavaScript and Java strings cannot be reliably zeroed in place, so this feature deliberately trades a bounded three-minute encrypted shortcut exposure for locked-vault notification copying. The copied value is marked sensitive for Android clipboard previews and remains subject to the separate five-minute clipboard policy below.
 
 ## Password changes
 
