@@ -3,14 +3,14 @@ import type { VaultItem, VaultItemRecord } from '../models/vault.models';
 import { VaultCryptoService } from '../crypto/vault-crypto.service';
 import { StorageEngine } from '../storage/storage-engine';
 import { AuthStore } from './auth.store';
-import { PasswordGeneratorService } from './password-generator.service';
+import { PasswordStrengthService } from './password-strength.service';
 
 @Service()
 export class VaultStore {
   private readonly storage = inject(StorageEngine);
   private readonly crypto = inject(VaultCryptoService);
   private readonly auth = inject(AuthStore);
-  private readonly passwordGenerator = inject(PasswordGeneratorService);
+  private readonly passwordStrength = inject(PasswordStrengthService);
   readonly items = signal<readonly VaultItem[]>([]);
   readonly query = signal('');
   readonly typeFilter = signal<VaultItem['type'] | 'ALL'>('ALL');
@@ -39,7 +39,7 @@ export class VaultStore {
         (field) =>
           field.type === 'PASSWORD' &&
           field.value.length > 0 &&
-          this.passwordGenerator.entropy(field.value) < 50,
+          this.passwordStrength.analyse(field.value).entropy < 50,
       ),
     ),
   );

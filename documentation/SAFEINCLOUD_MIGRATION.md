@@ -68,3 +68,37 @@ The output uses Vault Nest’s current compact backup format:
 - PBKDF2-SHA256 with 600,000 iterations and AES-256-GCM for the outer `.vaultpack`.
 
 The old SafeInCloud password, new Vault Nest master password, backup passphrase, and plaintext XML are held only in process memory. Node and the operating system may still retain memory pages temporarily; run the migration on a trusted device.
+
+## Convert back to SafeInCloud
+
+Vault Nest can also convert a current compact `.vaultpack` into an encrypted
+SafeInCloud-compatible `.db` container. This is a compatibility workaround for leaving Vault
+Nest; no plaintext CSV or XML intermediate file is written.
+
+Create a fresh encrypted backup in Vault Nest first. Then run:
+
+```bash
+npm run migrate:to-safeincloud -- \
+  --input "/mnt/c/Users/meeta/Downloads/vault-nest-backup.vaultpack" \
+  --output "/mnt/c/Users/meeta/Downloads/VaultNest-SafeInCloud.db"
+```
+
+The command asks for the VaultPack backup passphrase and a new password for the generated
+SafeInCloud database. Passwords are hidden and are never accepted as command-line arguments.
+
+Before importing or replacing any SafeInCloud database:
+
+1. Back up the existing SafeInCloud database.
+2. Test the generated file with an empty or separate SafeInCloud database first.
+3. Confirm several cards, custom fields, labels, notes, passwords, and 2FA backup codes before
+   relying on the converted database.
+
+The converter exports all non-trashed Vault Nest items. Archived items receive a
+`Vault Nest Archived` label because SafeInCloud has no equivalent archive state. Vault Nest
+templates and favourites are retained. Item icons are not embedded because the two applications
+use different icon models.
+
+This route is based on SafeInCloud's independently documented native container format rather than
+an official SafeInCloud writer API. If a particular SafeInCloud release rejects the `.db`, use
+Vault Nest's **Settings → Data → Export as CSV** and SafeInCloud's desktop import flow instead.
+CSV is plaintext, so securely delete it immediately after import.

@@ -264,6 +264,11 @@ function parseSafeInCloud(xml) {
     const notes = [];
     const backupCodes = [];
     const fields = [];
+    notes.push(
+      ...elements(element.body, 'notes')
+        .map((entry) => decodeXml(entry.body))
+        .filter(Boolean),
+    );
     for (const field of parsedFields) {
       if (field.type === 'MULTILINE' && /^notes?$/i.test(field.label)) {
         notes.push(field.value);

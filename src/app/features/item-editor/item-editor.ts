@@ -9,7 +9,7 @@ import type {
 } from '../../core/models/vault.models';
 import { VaultStore } from '../../core/services/vault.store';
 import { AppIcon } from '../../shared/components/app-icon';
-import { PasswordGeneratorService } from '../../core/services/password-generator.service';
+import { PasswordStrengthService } from '../../core/services/password-strength.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
@@ -100,7 +100,7 @@ export class ItemEditor implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly vault = inject(VaultStore);
-  private readonly passwordGenerator = inject(PasswordGeneratorService);
+  private readonly passwordStrengthService = inject(PasswordStrengthService);
   private readonly websiteIcons = inject(WebsiteIconService);
   existing: VaultItem | null = null;
   private readonly creatingFromTemplate =
@@ -399,21 +399,7 @@ export class ItemEditor implements OnInit {
     );
   }
   passwordStrength(value: string): { label: string; crackTime: string; score: number } {
-    if (!value) return { label: 'Enter a password', crackTime: 'Not estimated', score: 0 };
-    const entropy = this.passwordGenerator.entropy(value);
-    const score = Math.min(4, Math.max(1, Math.ceil(entropy / 25)));
-    const label =
-      entropy >= 100
-        ? 'Very strong'
-        : entropy >= 75
-          ? 'Strong'
-          : entropy >= 50
-            ? 'Fair'
-            : entropy >= 30
-              ? 'Weak'
-              : 'Very weak';
-    const seconds = 2 ** Math.min(entropy, 1024) / 10_000_000_000;
-    return { label, crackTime: this.formatDuration(seconds), score };
+    return this.passwordStrengthService.analyse(value);
   }
   private showFieldMessage(message: string): void {
     this.fieldMessage.set(message);
@@ -508,18 +494,6 @@ export class ItemEditor implements OnInit {
       };
       reader.readAsDataURL(file);
     });
-  }
-  private formatDuration(seconds: number): string {
-    if (seconds < 1) return 'Instantly crackable';
-    if (seconds < 60) return `${Math.max(1, Math.round(seconds))} seconds`;
-    if (seconds < 3_600) return `${Math.round(seconds / 60)} minutes`;
-    if (seconds < 86_400) return `${Math.round(seconds / 3_600)} hours`;
-    if (seconds < 31_536_000) return `${Math.round(seconds / 86_400)} days`;
-    const years = seconds / 31_536_000;
-    if (years < 100) return `${Math.round(years)} years`;
-    if (years < 1_000) return 'Centuries';
-    if (years < 1_000_000) return 'Thousands of years';
-    return 'Millions of years';
   }
   private defaultFields(type: VaultItemType): readonly Omit<VaultField, 'id'>[] {
     const field = (label: string, fieldType: VaultFieldType, sensitive = false) => ({
