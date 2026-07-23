@@ -15,7 +15,18 @@
 }
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 0.25rem;
+}
+.batch-favourite {
+  color: var(--accent-strong);
+}
+.clear-selection {
+  cursor: pointer;
+}
+.clear-selection:hover {
+  background: var(--surface);
+  color: var(--danger);
 }
 .danger-filter {
   color: var(--danger);
@@ -256,6 +267,22 @@ h1 {
   justify-items: end;
   gap: 0.6rem;
 }
+.fab-wrap.hidden {
+  display: none;
+}
+.batch-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 130;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.78rem;
+  box-shadow: var(--shadow-lg);
+}
 .fab {
   display: grid;
   width: 3.6rem;
@@ -318,6 +345,9 @@ h1 {
   }
   .pane-header {
     margin-top: 0.25rem;
+  }
+  .batch-toast {
+    bottom: calc(5rem + env(safe-area-inset-bottom));
   }
   .filter-panel {
     padding: 0.65rem;

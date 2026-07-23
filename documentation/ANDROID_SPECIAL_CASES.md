@@ -57,3 +57,7 @@ Test all of these on a physical Android device:
 7. Confirm clearing/removing the vault invalidates all notification shortcuts.
 
 Never put plaintext credential values into notification titles, bodies, action labels, log output, analytics, intent URIs, or pending-intent extras.
+
+## Theme-aware option pickers
+
+Android's native HTML `select` overlay is rendered by the device or WebView and can remain light even when Vault Nest is dark. Field-type selection therefore uses the reusable Angular `SelectPicker` instead of a native `select`. On phones it opens as a bottom sheet; on larger screens it opens as a centred dialog. Both surfaces use Vault Nest theme variables, so Light, Dark, and Automatic modes remain consistent without relying on OEM dropdown styling.
