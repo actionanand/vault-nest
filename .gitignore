@@ -43,6 +43,7 @@ testem.log
 __screenshots__/
 release-keystore.jks
 keystore.b64.txt
+*.vaultpack
 
 # System files
 .DS_Store

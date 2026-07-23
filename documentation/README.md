@@ -31,6 +31,7 @@ CI builds Angular, runs `cap add android`, synchronises Capacitor, and applies t
 - [Android splash and credential notification special cases](ANDROID_SPECIAL_CASES.md)
 - [Encrypted backup and restore](BACKUP_RESTORE.md)
 - [Plaintext CSV export](CSV_EXPORT.md)
+- [SafeInCloud database migration](SAFEINCLOUD_MIGRATION.md)
 - [Development guide](DEVELOPMENT.md)
 - [Implementation status and roadmap](IMPLEMENTATION_STATUS.md)
 
