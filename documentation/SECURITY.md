@@ -16,6 +16,10 @@ The work factor is versioned in `VaultHeader`. Benchmark it on the minimum suppo
 
 Item IDs, types, favourite/archive/trash flags, expiry dates, and timestamps remain visible to the database so indexed lists can work. Titles, usernames, passwords, notes, labels, and all fields are inside the encrypted payload. This is a deliberate leakage profile and must be disclosed in threat-model reviews.
 
+## Weak-password view
+
+The Weak passwords navigation scope is calculated only after unlock from decrypted, in-memory active items. It includes an item when at least one non-empty `PASSWORD` field is estimated below 50 bits of entropy. PIN, secret, OTP, archived, trashed, and template records are excluded. The result is never persisted as a separate password index and sensitive values are not added to search text.
+
 ## Browser constraints
 
 Web Crypto keys remain in the current JavaScript process while unlocked. Browser storage is IndexedDB only. A browser cannot reliably block operating-system screenshots, and the UI says so.

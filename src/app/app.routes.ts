@@ -35,6 +35,12 @@ export const routes: Routes = [
           import('./features/vault/vault-home').then((module) => module.VaultHome),
       },
       {
+        path: 'weak-passwords',
+        data: { weakPasswords: true },
+        loadComponent: () =>
+          import('./features/vault/vault-home').then((module) => module.VaultHome),
+      },
+      {
         path: 'archive',
         data: { scope: 'ARCHIVE' },
         loadComponent: () =>

@@ -7,56 +7,49 @@
       <p>{{ existing ? 'Edit item' : 'New encrypted item' }}</p>
       <h1>{{ type.toLowerCase().replace('_', ' ') }}</h1>
     </div>
-    <button class="primary-button compact" type="button" (click)="save()">Save</button>
+    <div class="editor-actions">
+      <button
+        class="icon-button favourite-button"
+        type="button"
+        [class.selected]="form.controls.favourite.value"
+        [attr.aria-pressed]="form.controls.favourite.value"
+        (click)="toggleFavourite()"
+        [attr.aria-label]="
+          form.controls.favourite.value ? 'Remove from favourites' : 'Add to favourites'
+        "
+      >
+        <app-icon name="favourite" [class.filled]="form.controls.favourite.value" />
+      </button>
+      @if (existing) {
+        <button
+          class="icon-button delete-button"
+          type="button"
+          aria-label="Move item to Trash"
+          (click)="deleteDialogOpen.set(true)"
+        >
+          <app-icon name="trash" />
+        </button>
+      }
+      <button class="primary-button compact" type="button" (click)="save()">Save</button>
+    </div>
   </header>
 
   <form [formGroup]="form" (ngSubmit)="save()">
     <section class="form-card identity-card">
       <div class="identity-copy">
         <label>
-          Title
+          <span class="title-word">Title</span>
           <input type="text" formControlName="title" autocomplete="off" placeholder="e.g. GitHub" />
         </label>
-        <label class="check">
-          <input type="checkbox" formControlName="favourite" />
-          <span>Add to favourites</span>
-        </label>
       </div>
-      <div class="icon-preview" aria-label="Selected credential icon">
+      <button
+        class="icon-preview"
+        type="button"
+        aria-label="Choose credential icon"
+        (click)="iconDialogOpen.set(true)"
+      >
         <app-vault-item-icon [item]="iconPreview()" />
-      </div>
-    </section>
-
-    <section class="form-card icon-card">
-      <div>
-        <h2>Credential icon</h2>
-        <p>
-          Automatic downloads the first website's Open Graph image on Android and stores the reduced
-          image inside the encrypted vault record.
-        </p>
-      </div>
-      <div class="icon-options" role="group" aria-label="Choose a credential icon">
-        @for (preset of iconPresets; track preset.value) {
-          <button
-            type="button"
-            class="icon-option"
-            [class.selected]="form.controls.icon.value === preset.value"
-            (click)="chooseIcon(preset.value)"
-            [attr.aria-pressed]="form.controls.icon.value === preset.value"
-          >
-            <app-icon [name]="preset.icon" />
-            <span>{{ preset.label }}</span>
-          </button>
-        }
-        <label class="icon-option upload">
-          <app-icon name="plus" />
-          <span>Custom image</span>
-          <input type="file" accept="image/*" (change)="useCustomIcon($event)" />
-        </label>
-      </div>
-      @if (customIconError()) {
-        <p class="field-error" role="alert">{{ customIconError() }}</p>
-      }
+      </button>
     </section>
 
     <section class="form-card fields-card" formArrayName="fields">
@@ -77,16 +70,20 @@
               aria-label="Field name"
               placeholder="Field name"
             />
-            <select
-              formControlName="type"
-              (change)="fieldTypeChanged(index)"
-              aria-label="Field type"
-              title="Change field type"
-            >
-              @for (option of fieldTypes; track option.type) {
-                <option [value]="option.type">{{ option.label }}</option>
-              }
-            </select>
+            <label class="type-control desktop-type-control">
+              <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
+              <span class="sr-only">Field type</span>
+              <select
+                formControlName="type"
+                (change)="fieldTypeChanged(index)"
+                aria-label="Field type"
+                title="Change field type"
+              >
+                @for (option of fieldTypes; track option.type) {
+                  <option [value]="option.type">{{ option.label }}</option>
+                }
+              </select>
+            </label>
             <button
               class="icon-button danger"
               type="button"
@@ -108,7 +105,7 @@
           } @else {
             <input
               class="field-value"
-              [type]="inputType(field.controls.type.value)"
+              [type]="inputType(field.controls.type.value, field.controls.sensitive.value)"
               [attr.inputmode]="field.controls.type.value === 'PIN' ? 'numeric' : null"
               formControlName="value"
               autocomplete="off"
@@ -127,17 +124,45 @@
               </div>
               <p>
                 <strong>{{ analysis.label }}</strong>
-                <span>Estimated offline crack time: {{ analysis.crackTime }}</span>
+                <span>Crack time: {{ analysis.crackTime }}</span>
               </p>
             </div>
           }
 
           <div class="field-footer">
-            <label class="check sensitive">
-              <input type="checkbox" formControlName="sensitive" />
-              <span>Hide by default</span>
-            </label>
             <div class="field-actions">
+              <label class="type-control mobile-type-control">
+                <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
+                <span class="sr-only">Field type</span>
+                <select
+                  formControlName="type"
+                  (change)="fieldTypeChanged(index)"
+                  aria-label="Field type"
+                  title="Change field type"
+                >
+                  @for (option of fieldTypes; track option.type) {
+                    <option [value]="option.type">{{ option.label }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="icon-button"
+                type="button"
+                (click)="toggleSensitive(index)"
+                [attr.aria-pressed]="field.controls.sensitive.value"
+                [attr.aria-label]="
+                  field.controls.sensitive.value
+                    ? 'Show this field by default'
+                    : 'Hide this field by default'
+                "
+                [title]="
+                  field.controls.sensitive.value
+                    ? 'Hidden by default; tap to show'
+                    : 'Visible by default; tap to hide'
+                "
+              >
+                <app-icon [name]="field.controls.sensitive.value ? 'eye_off' : 'eye'" />
+              </button>
               <button
                 class="icon-button"
                 type="button"
@@ -163,6 +188,7 @@
                 type="button"
                 (click)="duplicateField(index)"
                 aria-label="Duplicate field"
+                title="Duplicate this field"
               >
                 <app-icon name="copy" />
               </button>
@@ -237,6 +263,58 @@
   </div>
 }
 
+@if (iconDialogOpen()) {
+  <div class="dialog-backdrop">
+    <section
+      class="field-dialog icon-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="icon-dialog-title"
+    >
+      <header>
+        <div>
+          <p class="eyebrow">Credential artwork</p>
+          <h2 id="icon-dialog-title">Choose an icon</h2>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          (click)="iconDialogOpen.set(false)"
+          aria-label="Close icon chooser"
+        >
+          <app-icon name="close" />
+        </button>
+      </header>
+      <p class="icon-help">
+        Automatic fetches the first website's artwork on Android and stores a reduced copy inside
+        the encrypted item.
+      </p>
+      <div class="icon-options" role="group" aria-label="Choose a credential icon">
+        @for (preset of iconPresets; track preset.value) {
+          <button
+            type="button"
+            class="icon-option"
+            [class.selected]="form.controls.icon.value === preset.value"
+            (click)="chooseIcon(preset.value)"
+            [attr.aria-pressed]="form.controls.icon.value === preset.value"
+          >
+            <app-icon [name]="preset.icon" />
+            <span>{{ preset.label }}</span>
+          </button>
+        }
+        <label class="icon-option upload">
+          <app-icon name="plus" />
+          <span>Custom image</span>
+          <input type="file" accept="image/*" (change)="useCustomIcon($event)" />
+        </label>
+      </div>
+      @if (customIconError()) {
+        <p class="field-error" role="alert">{{ customIconError() }}</p>
+      }
+    </section>
+  </div>
+}
+
 @if (addDialogOpen()) {
   <div class="dialog-backdrop">
     <section class="field-dialog" role="dialog" aria-modal="true" aria-labelledby="add-field-title">
@@ -285,4 +363,21 @@
       </form>
     </section>
   </div>
+}
+
+<app-confirmation-dialog
+  [open]="deleteDialogOpen()"
+  [busy]="deleting()"
+  dialogId="delete-vault-item"
+  title="Move this item to Trash?"
+  message="The item will leave your active vault and remain recoverable in Trash until its retention period expires."
+  acknowledgementLabel="I understand that this item will be moved to Trash."
+  confirmLabel="Move to Trash"
+  busyLabel="Moving to Trash…"
+  (cancelled)="deleteDialogOpen.set(false)"
+  (confirmed)="deleteItem()"
+/>
+
+@if (fieldMessage()) {
+  <div class="field-snackbar" role="status">{{ fieldMessage() }}</div>
 }

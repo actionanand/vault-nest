@@ -21,6 +21,17 @@
   font-size: 1.5rem;
   text-transform: capitalize;
 }
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.favourite-button.selected {
+  color: var(--accent-strong);
+}
+.delete-button {
+  color: var(--danger);
+}
 .editor-page form {
   display: grid;
   gap: 1rem;
@@ -92,13 +103,21 @@
 }
 .icon-preview {
   display: grid;
-  width: 5rem;
-  height: 5rem;
+  width: 3.75rem;
+  height: 3.75rem;
   place-items: center;
   overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
   border-radius: 1.25rem;
   background: var(--accent-soft);
   color: var(--accent-strong);
+  cursor: pointer;
+}
+.icon-preview:hover,
+.icon-preview:focus-visible {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 .icon-options {
   display: grid;
@@ -173,6 +192,20 @@
   align-items: center;
   gap: 0.55rem;
 }
+.type-control {
+  display: flex !important;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem !important;
+}
+.type-control app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+.desktop-type-control {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+}
 .field-heading .field-name {
   min-height: 2.3rem !important;
   padding: 0.45rem 0.6rem !important;
@@ -181,7 +214,8 @@
   color: var(--text) !important;
   font-weight: 700 !important;
 }
-.field-heading select {
+.field-heading select,
+.type-control select {
   min-height: 2.3rem;
   padding: 0.4rem 2rem 0.4rem 0.6rem;
   font-size: 0.68rem;
@@ -195,12 +229,16 @@
 .field-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
 }
 .field-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+}
+.mobile-type-control {
+  display: none !important;
 }
 .field-heading .danger {
   color: var(--danger);
@@ -329,35 +367,81 @@
   color: var(--text-muted);
   font-size: 0.65rem;
 }
+.icon-help {
+  margin: 0.7rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.field-snackbar {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 190;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--text);
+  color: var(--surface);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
 @media (max-width: 600px) {
   .editor-page {
     padding-top: 1rem;
   }
   .identity-card {
-    grid-template-columns: minmax(0, 1fr) 4rem;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .icon-preview {
-    width: 4rem;
-    height: 4rem;
+    width: 3.15rem;
+    height: 3.15rem;
+    border-radius: 0.9rem;
+  }
+  .title-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .field-heading {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  .field-heading select {
-    grid-row: 2;
-    grid-column: 1/-1;
+  .desktop-type-control {
+    display: none !important;
   }
   .field-heading .danger {
     grid-column: 2;
     grid-row: 1;
   }
-  .field-footer,
-  .password-strength p {
-    align-items: flex-start;
-    flex-direction: column;
+  .field-footer {
+    align-items: center;
   }
   .field-actions {
-    align-self: flex-end;
+    width: 100%;
+    justify-content: flex-end;
+    gap: 0.1rem;
+  }
+  .mobile-type-control {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    width: min(8.5rem, 36vw);
+    margin-right: auto;
+  }
+  .mobile-type-control select {
+    min-width: 0;
+    padding-right: 1.2rem;
+  }
+  .password-strength p {
+    align-items: center;
+    font-size: 0.68rem;
+  }
+  .password-strength p span {
+    text-align: right;
   }
   .field-type-grid {
     grid-template-columns: 1fr;
@@ -365,10 +449,21 @@
   .editor-page header .compact {
     padding: 0.65rem;
   }
+  .editor-page > header {
+    gap: 0.5rem;
+  }
+  .editor-actions {
+    gap: 0.1rem;
+  }
   .form-footer > * {
     flex: 1;
   }
   .dialog-actions {
     flex-wrap: wrap;
+  }
+  .field-snackbar {
+    right: 50%;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    transform: translateX(50%);
   }
 }

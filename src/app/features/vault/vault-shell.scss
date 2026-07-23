@@ -55,6 +55,13 @@
 .drawer a b {
   font-size: 0.72rem;
 }
+.drawer .weak-password-link app-icon {
+  color: var(--warning);
+}
+.drawer .weak-password-link.has-weak app-icon,
+.drawer .weak-password-link.has-weak b {
+  color: var(--danger);
+}
 .drawer a:hover,
 .drawer a.active {
   background: var(--accent-soft);

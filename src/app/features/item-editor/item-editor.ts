@@ -12,6 +12,7 @@ import { AppIcon } from '../../shared/components/app-icon';
 import { PasswordGeneratorService } from '../../core/services/password-generator.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
+import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 
 type FieldForm = FormGroup<{
   id: FormControl<string>;
@@ -60,7 +61,7 @@ const FIELD_TYPES: readonly FieldTypeOption[] = [
 
 @Component({
   selector: 'app-item-editor',
-  imports: [ReactiveFormsModule, RouterLink, AppIcon, VaultItemIcon],
+  imports: [ReactiveFormsModule, RouterLink, AppIcon, VaultItemIcon, ConfirmationDialog],
   templateUrl: './item-editor.html',
   styleUrl: './item-editor.scss',
 })
@@ -99,6 +100,10 @@ export class ItemEditor implements OnInit {
   ] as const;
   readonly addTypeOpen = signal(false);
   readonly addDialogOpen = signal(false);
+  readonly iconDialogOpen = signal(false);
+  readonly deleteDialogOpen = signal(false);
+  readonly deleting = signal(false);
+  readonly fieldMessage = signal('');
   readonly pendingFieldType = signal<VaultFieldType>('TEXT');
   readonly customIconError = signal('');
   readonly strengthSegments = [1, 2, 3, 4] as const;
@@ -217,6 +222,7 @@ export class ItemEditor implements OnInit {
   chooseIcon(icon: string): void {
     this.form.controls.icon.setValue(icon);
     this.form.controls.icon.markAsDirty();
+    this.iconDialogOpen.set(false);
   }
   iconPreview(): Pick<VaultItem, 'icon' | 'type'> {
     return { icon: this.form.controls.icon.value, type: this.type };
@@ -227,6 +233,44 @@ export class ItemEditor implements OnInit {
   fieldTypeChanged(index: number): void {
     const field = this.fields.at(index);
     field.controls.sensitive.setValue(this.fieldOption(field.controls.type.value).sensitive);
+  }
+  fieldTypeIcon(type: VaultFieldType): string {
+    if (['PASSWORD', 'PIN', 'SECRET', 'OTP', 'HIDDEN'].includes(type)) return 'key';
+    if (['WEBSITE', 'APPLICATION'].includes(type)) return 'globe';
+    if (['DATE', 'EXPIRY'].includes(type)) return 'calendar';
+    if (type === 'EMAIL') return 'field_email';
+    if (type === 'PHONE') return 'field_phone';
+    if (type === 'NUMBER') return 'field_number';
+    if (type === 'USERNAME') return 'identity';
+    if (type === 'BOOLEAN') return 'field_toggle';
+    return 'field_text';
+  }
+  toggleSensitive(index: number): void {
+    const control = this.fields.at(index).controls.sensitive;
+    control.setValue(!control.value);
+    this.showFieldMessage(
+      control.value ? 'Field will be hidden by default.' : 'Field will be visible by default.',
+    );
+  }
+  toggleFavourite(): void {
+    const control = this.form.controls.favourite;
+    control.setValue(!control.value);
+    control.markAsDirty();
+  }
+  async deleteItem(): Promise<void> {
+    if (!this.existing || this.deleting()) return;
+    this.deleting.set(true);
+    try {
+      await this.vault.save({
+        ...this.existing,
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      this.deleteDialogOpen.set(false);
+      await this.router.navigateByUrl('/vault/all');
+    } finally {
+      this.deleting.set(false);
+    }
   }
   async useCustomIcon(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
@@ -241,6 +285,7 @@ export class ItemEditor implements OnInit {
     try {
       this.form.controls.icon.setValue(await this.resizeIcon(file));
       this.form.controls.icon.markAsDirty();
+      this.iconDialogOpen.set(false);
     } catch {
       this.customIconError.set('The selected image could not be read.');
     }
@@ -248,8 +293,8 @@ export class ItemEditor implements OnInit {
   isHiddenType(type: VaultFieldType): boolean {
     return ['PASSWORD', 'PIN', 'SECRET', 'OTP', 'HIDDEN'].includes(type);
   }
-  inputType(type: VaultFieldType): string {
-    if (this.isHiddenType(type)) return 'password';
+  inputType(type: VaultFieldType, sensitive = this.fieldOption(type).sensitive): string {
+    if (sensitive) return 'password';
     return (
       (
         {
@@ -280,6 +325,12 @@ export class ItemEditor implements OnInit {
               : 'Very weak';
     const seconds = 2 ** Math.min(entropy, 1024) / 10_000_000_000;
     return { label, crackTime: this.formatDuration(seconds), score };
+  }
+  private showFieldMessage(message: string): void {
+    this.fieldMessage.set(message);
+    setTimeout(() => {
+      if (this.fieldMessage() === message) this.fieldMessage.set('');
+    }, 2400);
   }
   private createField(value: {
     id?: string;

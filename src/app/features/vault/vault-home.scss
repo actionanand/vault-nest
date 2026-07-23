@@ -62,18 +62,22 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  padding-bottom: 0.75rem;
+  order: 2;
 }
 .filter-panel {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: none;
   gap: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+.filter-panel.open {
+  display: grid;
 }
 .sort-control {
   display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.4rem;
+  order: 1;
   color: var(--text-muted);
   font-size: 0.68rem;
   font-weight: 700;
@@ -316,14 +320,10 @@ h1 {
     margin-top: 0.25rem;
   }
   .filter-panel {
-    display: none;
     padding: 0.65rem;
     border: 1px solid var(--border);
     border-radius: 0.8rem;
     background: var(--surface);
-  }
-  .filter-panel.open {
-    display: grid;
   }
   .sort-control {
     justify-content: space-between;
