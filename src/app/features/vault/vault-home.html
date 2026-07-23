@@ -93,10 +93,15 @@
         />
       } @empty {
         <div class="empty">
-          <span><app-icon [name]="favouritesOnly ? 'favourite' : 'shield'" /></span>
+          <span
+            ><app-icon
+              [name]="
+                favouritesOnly ? 'favourite' : weakPasswordsOnly ? 'weak_password' : 'shield'
+              "
+          /></span>
           <h2>{{ emptyTitle() }}</h2>
           <p>{{ emptyDescription() }}</p>
-          @if (!scope) {
+          @if (!scope && !weakPasswordsOnly) {
             <a class="primary-button" routerLink="/vault/new/LOGIN"
               ><app-icon name="plus" />Add login</a
             >

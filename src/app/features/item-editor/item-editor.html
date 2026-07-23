@@ -1,121 +1,437 @@
 <main class="editor-page">
   <header>
-    <a class="icon-button" routerLink="/vault/all" aria-label="Cancel and go back"
-      ><app-icon name="back"
-    /></a>
+    <a class="icon-button" routerLink="/vault/all" aria-label="Cancel and go back">
+      <app-icon name="back" />
+    </a>
     <div>
       <p>{{ existing ? 'Edit item' : 'New encrypted item' }}</p>
       <h1>{{ type.toLowerCase().replace('_', ' ') }}</h1>
     </div>
-    <button class="primary-button compact" type="button" (click)="save()">Save</button>
-  </header>
-  <form [formGroup]="form" (ngSubmit)="save()">
-    <section class="form-card">
-      <h2>Item details</h2>
-      <label
-        >Title<input
-          type="text"
-          formControlName="title"
-          autocomplete="off"
-          placeholder="e.g. GitHub" /></label
-      ><label class="check"
-        ><input type="checkbox" formControlName="favourite" /><span>Add to favourites</span></label
+    <div class="editor-actions">
+      <button
+        class="icon-button favourite-button"
+        type="button"
+        [class.selected]="form.controls.favourite.value"
+        [attr.aria-pressed]="form.controls.favourite.value"
+        (click)="toggleFavourite()"
+        [attr.aria-label]="
+          form.controls.favourite.value ? 'Remove from favourites' : 'Add to favourites'
+        "
       >
+        <app-icon name="favourite" [class.filled]="form.controls.favourite.value" />
+      </button>
+      @if (existing) {
+        <button
+          class="icon-button delete-button"
+          type="button"
+          aria-label="Move item to Trash"
+          (click)="deleteDialogOpen.set(true)"
+        >
+          <app-icon name="trash" />
+        </button>
+      }
+      <button class="primary-button compact" type="button" (click)="save()">Save</button>
+    </div>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <section class="form-card identity-card">
+      <div class="identity-copy">
+        <label>
+          <span class="title-word">Title</span>
+          <input type="text" formControlName="title" autocomplete="off" placeholder="e.g. GitHub" />
+        </label>
+      </div>
+      <button
+        class="icon-preview"
+        type="button"
+        aria-label="Choose credential icon"
+        (click)="iconDialogOpen.set(true)"
+      >
+        <app-vault-item-icon [item]="iconPreview()" />
+      </button>
     </section>
-    <section class="form-card" formArrayName="fields">
+
+    <section class="form-card fields-card" formArrayName="fields">
       <div class="section-title">
         <div>
           <h2>Fields</h2>
-          <p>
-            Sensitive values are hidden by default. Use the up and down arrows to change the order
-            in which fields appear.
-          </p>
+          <p>Passwords, PINs, secrets, OTP seeds, and hidden values stay concealed by default.</p>
         </div>
-        <button class="quiet-button" type="button" (click)="addField()">
-          <app-icon name="plus" />Add another field
-        </button>
       </div>
+
       @for (field of fields.controls; track field.controls.id.value; let index = $index) {
-        <div class="dynamic-field" [formGroupName]="index">
-          <label
-            >Field name<input type="text" formControlName="label" placeholder="Field name" /></label
-          ><label
-            >Type<select formControlName="type">
-              <option value="TEXT">Text</option>
-              <option value="MULTILINE">Multiline text</option>
-              <option value="USERNAME">Username</option>
-              <option value="PASSWORD">Password</option>
-              <option value="WEBSITE">Website</option>
-              <option value="EMAIL">Email</option>
-              <option value="PHONE">Phone</option>
-              <option value="PIN">PIN</option>
-              <option value="SECRET">Secret</option>
-              <option value="OTP">One-time password secret</option>
-              <option value="DATE">Date</option>
-              <option value="EXPIRY">Expiry</option>
-              <option value="BOOLEAN">Boolean</option>
-              <option value="HIDDEN">Hidden value</option>
-            </select></label
-          ><label class="field-value"
-            >Value<textarea formControlName="value" rows="1" placeholder="Value"></textarea></label
-          ><label class="check sensitive"
-            ><input type="checkbox" formControlName="sensitive" /><span>Sensitive</span></label
-          >
-          <div class="field-actions">
+        <article class="dynamic-field" [formGroupName]="index">
+          <div class="field-heading">
+            <input
+              class="field-name"
+              type="text"
+              formControlName="label"
+              aria-label="Field name"
+              placeholder="Field name"
+            />
+            <label class="type-control desktop-type-control">
+              <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
+              <span class="sr-only">Field type</span>
+              <select
+                formControlName="type"
+                (change)="fieldTypeChanged(index)"
+                aria-label="Field type"
+                title="Change field type"
+              >
+                @for (option of fieldTypes; track option.type) {
+                  <option [value]="option.type">{{ option.label }}</option>
+                }
+              </select>
+            </label>
             <button
-              class="icon-button"
-              type="button"
-              (click)="move(index, -1)"
-              [disabled]="index === 0"
-              aria-label="Move field up"
-              title="Move this field one position up"
-            >
-              <app-icon name="arrow_up" /></button
-            ><button
-              class="icon-button"
-              type="button"
-              (click)="move(index, 1)"
-              [disabled]="index === fields.length - 1"
-              aria-label="Move field down"
-              title="Move this field one position down"
-            >
-              <app-icon name="arrow_down" /></button
-            ><button
-              class="icon-button"
-              type="button"
-              (click)="duplicateField(index)"
-              aria-label="Duplicate field"
-            >
-              <app-icon name="copy" /></button
-            ><button
               class="icon-button danger"
               type="button"
               (click)="removeField(index)"
               aria-label="Remove field"
             >
-              <app-icon name="trash" />
+              <app-icon name="close" />
             </button>
           </div>
-        </div>
+
+          @if (field.controls.type.value === 'MULTILINE') {
+            <textarea
+              class="field-value"
+              formControlName="value"
+              rows="3"
+              [attr.aria-label]="field.controls.label.value + ' value'"
+              placeholder="Value"
+            ></textarea>
+          } @else {
+            <input
+              class="field-value"
+              [type]="inputType(field.controls.type.value, field.controls.sensitive.value)"
+              [attr.inputmode]="field.controls.type.value === 'PIN' ? 'numeric' : null"
+              formControlName="value"
+              autocomplete="off"
+              [attr.aria-label]="field.controls.label.value + ' value'"
+              placeholder="Value"
+            />
+          }
+
+          @if (field.controls.type.value === 'PASSWORD') {
+            @let analysis = passwordStrength(field.controls.value.value);
+            <div class="password-strength" [attr.data-score]="analysis.score">
+              <div class="strength-track" aria-hidden="true">
+                @for (segment of strengthSegments; track segment) {
+                  <i [class.active]="segment <= analysis.score"></i>
+                }
+              </div>
+              <p>
+                <strong>{{ analysis.label }}</strong>
+                <span>Crack time: {{ analysis.crackTime }}</span>
+              </p>
+            </div>
+          }
+
+          <div class="field-footer">
+            <div class="field-actions">
+              <label class="type-control mobile-type-control">
+                <app-icon [name]="fieldTypeIcon(field.controls.type.value)" />
+                <span class="sr-only">Field type</span>
+                <select
+                  formControlName="type"
+                  (change)="fieldTypeChanged(index)"
+                  aria-label="Field type"
+                  title="Change field type"
+                >
+                  @for (option of fieldTypes; track option.type) {
+                    <option [value]="option.type">{{ option.label }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="icon-button"
+                type="button"
+                (click)="toggleSensitive(index)"
+                [attr.aria-pressed]="field.controls.sensitive.value"
+                [attr.aria-label]="
+                  field.controls.sensitive.value
+                    ? 'Show this field by default'
+                    : 'Hide this field by default'
+                "
+                [title]="
+                  field.controls.sensitive.value
+                    ? 'Hidden by default; tap to show'
+                    : 'Visible by default; tap to hide'
+                "
+              >
+                <app-icon [name]="field.controls.sensitive.value ? 'eye_off' : 'eye'" />
+              </button>
+              <button
+                class="icon-button"
+                type="button"
+                (click)="move(index, -1)"
+                [disabled]="index === 0"
+                aria-label="Move field up"
+                title="Move this field one position up"
+              >
+                <app-icon name="arrow_up" />
+              </button>
+              <button
+                class="icon-button"
+                type="button"
+                (click)="move(index, 1)"
+                [disabled]="index === fields.length - 1"
+                aria-label="Move field down"
+                title="Move this field one position down"
+              >
+                <app-icon name="arrow_down" />
+              </button>
+              <button
+                class="icon-button"
+                type="button"
+                (click)="duplicateField(index)"
+                aria-label="Duplicate field"
+                title="Duplicate this field"
+              >
+                <app-icon name="copy" />
+              </button>
+            </div>
+          </div>
+        </article>
       }
+
+      <button class="add-field-button" type="button" (click)="openAddField()">
+        <app-icon name="plus" />
+        Add another field
+      </button>
     </section>
+
     <section class="form-card">
       <h2>Organisation</h2>
-      <label
-        >Labels <span>Comma separated</span
-        ><input type="text" formControlName="labels" placeholder="Work, Personal" /></label
-      ><label
-        >Expiry date <span>Optional</span><input type="date" formControlName="expiresAt" /></label
-      ><label
-        >Notes <span>Optional</span
-        ><textarea formControlName="notes" rows="6" placeholder="Plain text notes"></textarea>
+      <label>
+        Labels <span>Comma separated</span>
+        <input type="text" formControlName="labels" placeholder="Work, Personal" />
       </label>
+      <label>
+        Expiry date <span>Optional</span>
+        <input type="date" formControlName="expiresAt" />
+      </label>
+      <div class="text-panel">
+        <div class="text-tabs" role="tablist" aria-label="Additional information">
+          <button
+            id="notes-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="textTab() === 'NOTES'"
+            aria-controls="shared-text-area"
+            [class.active]="textTab() === 'NOTES'"
+            (click)="selectTextTab('NOTES')"
+          >
+            Notes
+          </button>
+          <button
+            id="backup-codes-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="textTab() === 'BACKUP_CODES'"
+            aria-controls="shared-text-area"
+            [class.active]="textTab() === 'BACKUP_CODES'"
+            (click)="selectTextTab('BACKUP_CODES')"
+          >
+            2FA backup codes
+          </button>
+        </div>
+        <div class="shared-text-heading">
+          <label for="shared-text-area">
+            {{ textTab() === 'NOTES' ? 'Notes' : '2FA backup codes' }}
+            <span>Optional</span>
+          </label>
+          @if (textTab() === 'BACKUP_CODES') {
+            <button
+              class="icon-button"
+              type="button"
+              [attr.aria-pressed]="backupCodesVisible()"
+              [attr.aria-label]="backupCodesVisible() ? 'Hide backup codes' : 'Show backup codes'"
+              (click)="toggleBackupCodesVisibility()"
+            >
+              <app-icon [name]="backupCodesVisible() ? 'eye' : 'eye_off'" />
+            </button>
+          }
+        </div>
+        <textarea
+          id="shared-text-area"
+          rows="6"
+          [formControl]="activeTextControl()"
+          [class.concealed]="textTab() === 'BACKUP_CODES' && !backupCodesVisible()"
+          [attr.aria-labelledby]="textTab() === 'NOTES' ? 'notes-tab' : 'backup-codes-tab'"
+          [placeholder]="
+            textTab() === 'NOTES'
+              ? 'Plain text notes'
+              : 'Enter one recovery or backup code per line'
+          "
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        ></textarea>
+      </div>
     </section>
+
     <div class="form-footer">
-      <a class="secondary-button" routerLink="/vault/all">Cancel</a
-      ><button class="primary-button" type="submit">
-        <app-icon name="shield" />Save encrypted item
+      <a class="secondary-button" routerLink="/vault/all">Cancel</a>
+      <button class="primary-button" type="submit">
+        <app-icon name="shield" />
+        Save encrypted item
       </button>
     </div>
   </form>
 </main>
+
+@if (addTypeOpen()) {
+  <div class="dialog-backdrop">
+    <section
+      class="field-dialog type-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="field-type-title"
+    >
+      <header>
+        <div>
+          <p class="eyebrow">Add another field</p>
+          <h2 id="field-type-title">Choose field type</h2>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          (click)="addTypeOpen.set(false)"
+          aria-label="Close"
+        >
+          <app-icon name="close" />
+        </button>
+      </header>
+      <div class="field-type-grid">
+        @for (option of fieldTypes; track option.type) {
+          <button type="button" (click)="chooseFieldType(option)">
+            <span>{{ option.label }}</span>
+            <small>{{ option.sensitive ? 'Hidden by default' : option.defaultName }}</small>
+          </button>
+        }
+      </div>
+    </section>
+  </div>
+}
+
+@if (iconDialogOpen()) {
+  <div class="dialog-backdrop">
+    <section
+      class="field-dialog icon-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="icon-dialog-title"
+    >
+      <header>
+        <div>
+          <p class="eyebrow">Credential artwork</p>
+          <h2 id="icon-dialog-title">Choose an icon</h2>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          (click)="iconDialogOpen.set(false)"
+          aria-label="Close icon chooser"
+        >
+          <app-icon name="close" />
+        </button>
+      </header>
+      <p class="icon-help">
+        Automatic fetches the first website's artwork on Android and stores a reduced copy inside
+        the encrypted item.
+      </p>
+      <div class="icon-options" role="group" aria-label="Choose a credential icon">
+        @for (preset of iconPresets; track preset.value) {
+          <button
+            type="button"
+            class="icon-option"
+            [class.selected]="form.controls.icon.value === preset.value"
+            (click)="chooseIcon(preset.value)"
+            [attr.aria-pressed]="form.controls.icon.value === preset.value"
+          >
+            <app-icon [name]="preset.icon" />
+            <span>{{ preset.label }}</span>
+          </button>
+        }
+        <label class="icon-option upload">
+          <app-icon name="plus" />
+          <span>Custom image</span>
+          <input type="file" accept="image/*" (change)="useCustomIcon($event)" />
+        </label>
+      </div>
+      @if (customIconError()) {
+        <p class="field-error" role="alert">{{ customIconError() }}</p>
+      }
+    </section>
+  </div>
+}
+
+@if (addDialogOpen()) {
+  <div class="dialog-backdrop">
+    <section class="field-dialog" role="dialog" aria-modal="true" aria-labelledby="add-field-title">
+      <form [formGroup]="addFieldForm" (ngSubmit)="confirmAddField()">
+        <header>
+          <div>
+            <p class="eyebrow">{{ fieldTypeLabel(pendingFieldType()) }}</p>
+            <h2 id="add-field-title">Add field</h2>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            (click)="addDialogOpen.set(false)"
+            aria-label="Close"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <label>
+          Name
+          <input type="text" formControlName="label" autocomplete="off" />
+        </label>
+        <div class="dialog-control">
+          <label for="add-field-value">Value</label>
+          @if (pendingFieldType() === 'MULTILINE') {
+            <textarea id="add-field-value" formControlName="value" rows="3"></textarea>
+          } @else {
+            <input
+              id="add-field-value"
+              [type]="inputType(pendingFieldType())"
+              [attr.inputmode]="pendingFieldType() === 'PIN' ? 'numeric' : null"
+              formControlName="value"
+              autocomplete="off"
+            />
+          }
+        </div>
+        <div class="dialog-actions">
+          <button class="quiet-button" type="button" (click)="changePendingFieldType()">
+            Change type
+          </button>
+          <button class="secondary-button" type="button" (click)="addDialogOpen.set(false)">
+            Cancel
+          </button>
+          <button class="primary-button" type="submit">Add field</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+<app-confirmation-dialog
+  [open]="deleteDialogOpen()"
+  [busy]="deleting()"
+  dialogId="delete-vault-item"
+  title="Move this item to Trash?"
+  message="The item will leave your active vault and remain recoverable in Trash until its retention period expires."
+  acknowledgementLabel="I understand that this item will be moved to Trash."
+  confirmLabel="Move to Trash"
+  busyLabel="Moving to Trash…"
+  (cancelled)="deleteDialogOpen.set(false)"
+  (confirmed)="deleteItem()"
+/>
+
+@if (fieldMessage()) {
+  <div class="field-snackbar" role="status">{{ fieldMessage() }}</div>
+}

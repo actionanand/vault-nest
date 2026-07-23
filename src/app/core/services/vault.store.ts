@@ -3,12 +3,14 @@ import type { VaultItem, VaultItemRecord } from '../models/vault.models';
 import { VaultCryptoService } from '../crypto/vault-crypto.service';
 import { StorageEngine } from '../storage/storage-engine';
 import { AuthStore } from './auth.store';
+import { PasswordGeneratorService } from './password-generator.service';
 
 @Service()
 export class VaultStore {
   private readonly storage = inject(StorageEngine);
   private readonly crypto = inject(VaultCryptoService);
   private readonly auth = inject(AuthStore);
+  private readonly passwordGenerator = inject(PasswordGeneratorService);
   readonly items = signal<readonly VaultItem[]>([]);
   readonly query = signal('');
   readonly typeFilter = signal<VaultItem['type'] | 'ALL'>('ALL');
@@ -31,6 +33,17 @@ export class VaultStore {
   readonly visibleTrashedItems = computed(() => this.filterItems(this.trashedItems()));
   readonly favouriteItems = computed(() => this.activeItems().filter((item) => item.favourite));
   readonly favourites = computed(() => this.filterItems(this.favouriteItems()));
+  readonly weakPasswordItems = computed(() =>
+    this.activeItems().filter((item) =>
+      item.fields.some(
+        (field) =>
+          field.type === 'PASSWORD' &&
+          field.value.length > 0 &&
+          this.passwordGenerator.entropy(field.value) < 50,
+      ),
+    ),
+  );
+  readonly visibleWeakPasswordItems = computed(() => this.filterItems(this.weakPasswordItems()));
 
   private filterItems(items: readonly VaultItem[]): readonly VaultItem[] {
     const query = this.query().trim().toLocaleLowerCase();
@@ -68,7 +81,7 @@ export class VaultStore {
     }
   }
 
-  async save(item: VaultItem): Promise<void> {
+  async save(item: VaultItem, options: { readonly select?: boolean } = {}): Promise<void> {
     const encryptedPayload = await this.crypto.encryptJson(
       item,
       this.auth.getKey(),
@@ -91,7 +104,7 @@ export class VaultStore {
         b.updatedAt.localeCompare(a.updatedAt),
       ),
     );
-    this.selectedId.set(item.id);
+    if (options.select !== false) this.selectedId.set(item.id);
   }
 
   async toggleFavourite(item: VaultItem): Promise<void> {

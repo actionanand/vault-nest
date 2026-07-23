@@ -26,6 +26,7 @@ export class VaultHome {
   readonly cleanTrashOpen = signal(false);
   readonly cleaningTrash = signal(false);
   readonly favouritesOnly = this.route.snapshot.data['favourites'] === true;
+  readonly weakPasswordsOnly = this.route.snapshot.data['weakPasswords'] === true;
   readonly scope = this.route.snapshot.data['scope'] as 'ARCHIVE' | 'TRASH' | undefined;
   readonly title =
     this.scope === 'ARCHIVE'
@@ -34,7 +35,9 @@ export class VaultHome {
         ? 'Trash'
         : this.favouritesOnly
           ? 'Favourites'
-          : 'All items';
+          : this.weakPasswordsOnly
+            ? 'Weak passwords'
+            : 'All items';
   readonly items = computed(() => {
     const items =
       this.scope === 'ARCHIVE'
@@ -43,7 +46,9 @@ export class VaultHome {
           ? this.vault.visibleTrashedItems()
           : this.favouritesOnly
             ? this.vault.favourites()
-            : this.vault.visibleItems();
+            : this.weakPasswordsOnly
+              ? this.vault.visibleWeakPasswordItems()
+              : this.vault.visibleItems();
     return [...items].sort((first, second) => {
       if (this.sortOrder() === 'TITLE_ASC') return first.title.localeCompare(second.title);
       if (this.sortOrder() === 'TITLE_DESC') return second.title.localeCompare(first.title);
@@ -62,13 +67,17 @@ export class VaultHome {
     if (this.vault.query()) return 'Nothing matched';
     if (this.scope === 'ARCHIVE') return 'No archived items';
     if (this.scope === 'TRASH') return 'Trash is empty';
-    return this.favouritesOnly ? 'No favourites yet' : 'Your vault is ready';
+    if (this.favouritesOnly) return 'No favourites yet';
+    if (this.weakPasswordsOnly) return 'No weak passwords';
+    return 'Your vault is ready';
   }
   emptyDescription(): string {
     if (this.vault.query()) return 'Try a different title, label, or item type.';
     if (this.scope === 'ARCHIVE') return 'Archived items remain encrypted and appear here.';
     if (this.scope === 'TRASH')
       return 'Deleted items remain here until their retention period expires.';
+    if (this.weakPasswordsOnly)
+      return 'Passwords estimated below 50 bits of entropy will appear here.';
     return 'Add your first encrypted item to get started.';
   }
   setQuery(event: Event): void {

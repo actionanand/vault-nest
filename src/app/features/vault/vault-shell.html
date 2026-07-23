@@ -25,6 +25,15 @@
         ><app-icon name="favourite" /><span>Favourites</span
         ><b>{{ vault.favouriteItems().length }}</b></a
       >
+      <a
+        class="weak-password-link"
+        [class.has-weak]="vault.weakPasswordItems().length > 0"
+        routerLink="/vault/weak-passwords"
+        routerLinkActive="active"
+        (click)="closeDrawer()"
+        ><app-icon name="weak_password" /><span>Weak passwords</span
+        ><b>{{ vault.weakPasswordItems().length }}</b></a
+      >
       <a routerLink="/vault/generator" routerLinkActive="active" (click)="closeDrawer()"
         ><app-icon name="generator" /><span>Password generator</span></a
       >

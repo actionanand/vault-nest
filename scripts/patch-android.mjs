@@ -138,8 +138,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -175,12 +176,20 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -280,15 +289,8 @@ public class MainActivity extends BridgeActivity {
     ImageView icon = new ImageView(this);
     icon.setImageResource(R.drawable.vault_nest_splash_logo);
     icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    int padding = dp(24);
-    icon.setPadding(padding, padding, padding, padding);
-    GradientDrawable tile = new GradientDrawable();
-    tile.setShape(GradientDrawable.OVAL);
-    tile.setColor(Color.parseColor("#F4F6F4"));
-    icon.setBackground(tile);
-    icon.setElevation(dp(6));
 
-    FrameLayout.LayoutParams iconLayout = new FrameLayout.LayoutParams(dp(164), dp(164));
+    FrameLayout.LayoutParams iconLayout = new FrameLayout.LayoutParams(dp(148), dp(148));
     iconLayout.gravity = Gravity.CENTER;
     overlay.addView(icon, iconLayout);
     addContentView(
@@ -386,6 +388,24 @@ public class MainActivity extends BridgeActivity {
         clipboardClearTask = null;
       };
       mainHandler.postDelayed(clipboardClearTask, Math.max(0L, delayMs));
+    }
+
+    @JavascriptInterface
+    public void fetchWebsiteIcon(String websiteUrl, String requestId) {
+      new Thread(() -> {
+        JSONObject result = new JSONObject();
+        try {
+          result.put("requestId", requestId == null ? "" : requestId);
+          result.put("dataUrl", fetchWebsiteArtwork(websiteUrl));
+          dispatchNativeResult("website-icon", true, result.toString(), "");
+        } catch (Exception error) {
+          try {
+            result.put("requestId", requestId == null ? "" : requestId);
+            result.put("dataUrl", "");
+          } catch (Exception ignored) { }
+          dispatchNativeResult("website-icon", false, result.toString(), error.getMessage());
+        }
+      }, "vault-nest-website-icon").start();
     }
 
     @JavascriptInterface
@@ -696,6 +716,176 @@ public class MainActivity extends BridgeActivity {
     channel.enableVibration(false);
     channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
     manager.createNotificationChannel(channel);
+  }
+
+  private String fetchWebsiteArtwork(String rawWebsiteUrl) throws Exception {
+    if (rawWebsiteUrl == null || rawWebsiteUrl.trim().isEmpty()) {
+      throw new IllegalArgumentException("Website URL is empty");
+    }
+    String normalised = rawWebsiteUrl.trim();
+    if (!normalised.matches("(?i)^https?://.*")) normalised = "https://" + normalised;
+    URL website = new URL(normalised);
+    if (!"http".equalsIgnoreCase(website.getProtocol()) && !"https".equalsIgnoreCase(website.getProtocol())) {
+      throw new IllegalArgumentException("Only HTTP and HTTPS websites are supported");
+    }
+
+    HttpURLConnection pageConnection = openConnection(website);
+    pageConnection.setRequestProperty(
+      "Accept",
+      "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1"
+    );
+    String html;
+    URL resolvedPage;
+    try {
+      int status = pageConnection.getResponseCode();
+      if (status < 200 || status >= 400) {
+        throw new IllegalStateException("Website returned HTTP " + status);
+      }
+      resolvedPage = pageConnection.getURL();
+      try (InputStream input = pageConnection.getInputStream()) {
+        html = new String(readLimited(input, 1_048_576), StandardCharsets.UTF_8);
+      }
+    } finally {
+      pageConnection.disconnect();
+    }
+
+    Exception lastError = null;
+    for (String artworkUrl : artworkCandidates(html, resolvedPage)) {
+      try {
+        return downloadReducedArtwork(new URL(artworkUrl));
+      } catch (Exception error) {
+        lastError = error;
+      }
+    }
+    throw lastError == null
+      ? new IllegalStateException("No website image was found")
+      : lastError;
+  }
+
+  private HttpURLConnection openConnection(URL url) throws Exception {
+    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    connection.setConnectTimeout(15_000);
+    connection.setReadTimeout(20_000);
+    connection.setInstanceFollowRedirects(true);
+    connection.setRequestProperty(
+      "User-Agent",
+      "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 VaultNest/1.0"
+    );
+    return connection;
+  }
+
+  private List<String> artworkCandidates(String html, URL pageUrl) {
+    LinkedHashSet<String> openGraph = new LinkedHashSet<>();
+    LinkedHashSet<String> icons = new LinkedHashSet<>();
+    Pattern tagPattern = Pattern.compile("<(?:meta|link)\\\\b[^>]*>", Pattern.CASE_INSENSITIVE);
+    Pattern attributePattern = Pattern.compile(
+      "([A-Za-z_:][A-Za-z0-9_:.-]*)\\\\s*=\\\\s*([\\\"'])(.*?)\\\\2",
+      Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
+    Matcher tags = tagPattern.matcher(html);
+    while (tags.find()) {
+      String tag = tags.group();
+      Map<String, String> attributes = new HashMap<>();
+      Matcher attribute = attributePattern.matcher(tag);
+      while (attribute.find()) {
+        attributes.put(
+          attribute.group(1).toLowerCase(java.util.Locale.ROOT),
+          attribute.group(3).trim()
+        );
+      }
+      String property = attributes.get("property");
+      if (property == null) property = attributes.get("name");
+      String content = attributes.get("content");
+      if (
+        property != null
+          && content != null
+          && (
+            "og:image".equalsIgnoreCase(property)
+              || "og:image:url".equalsIgnoreCase(property)
+              || "twitter:image".equalsIgnoreCase(property)
+          )
+      ) {
+        addResolvedUrl(openGraph, pageUrl, content);
+      }
+      String rel = attributes.get("rel");
+      String href = attributes.get("href");
+      if (rel != null && href != null && rel.toLowerCase(java.util.Locale.ROOT).contains("icon")) {
+        addResolvedUrl(icons, pageUrl, href);
+      }
+    }
+    openGraph.addAll(icons);
+    addResolvedUrl(openGraph, pageUrl, "/favicon.ico");
+    return new ArrayList<>(openGraph);
+  }
+
+  private void addResolvedUrl(LinkedHashSet<String> target, URL pageUrl, String candidate) {
+    try {
+      String decoded = candidate.replace("&amp;", "&").replace("&#38;", "&");
+      URL resolved = new URL(pageUrl, decoded);
+      if ("http".equalsIgnoreCase(resolved.getProtocol()) || "https".equalsIgnoreCase(resolved.getProtocol())) {
+        target.add(resolved.toString());
+      }
+    } catch (Exception ignored) { }
+  }
+
+  private String downloadReducedArtwork(URL artworkUrl) throws Exception {
+    HttpURLConnection connection = openConnection(artworkUrl);
+    connection.setRequestProperty("Accept", "image/*");
+    byte[] bytes;
+    try {
+      int status = connection.getResponseCode();
+      if (status < 200 || status >= 400) {
+        throw new IllegalStateException("Image returned HTTP " + status);
+      }
+      try (InputStream input = connection.getInputStream()) {
+        bytes = readLimited(input, 4_194_304);
+      }
+    } finally {
+      connection.disconnect();
+    }
+    Bitmap source = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+    if (source == null) throw new IllegalStateException("Website image format is unsupported");
+    int largest = Math.max(source.getWidth(), source.getHeight());
+    float scale = largest > 192 ? 192f / largest : 1f;
+    int width = Math.max(1, Math.round(source.getWidth() * scale));
+    int height = Math.max(1, Math.round(source.getHeight() * scale));
+    Bitmap reduced = scale < 1f
+      ? Bitmap.createScaledBitmap(source, width, height, true)
+      : source;
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    boolean hasAlpha = reduced.hasAlpha();
+    Bitmap.CompressFormat format;
+    String mimeType;
+    if (hasAlpha) {
+      format = Bitmap.CompressFormat.PNG;
+      mimeType = "image/png";
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      format = Bitmap.CompressFormat.WEBP_LOSSY;
+      mimeType = "image/webp";
+    } else {
+      format = Bitmap.CompressFormat.JPEG;
+      mimeType = "image/jpeg";
+    }
+    if (!reduced.compress(format, hasAlpha ? 100 : 82, output)) {
+      throw new IllegalStateException("Website image could not be reduced");
+    }
+    if (reduced != source) reduced.recycle();
+    source.recycle();
+    return "data:" + mimeType + ";base64,"
+      + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP);
+  }
+
+  private byte[] readLimited(InputStream input, int maximumBytes) throws Exception {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    byte[] buffer = new byte[8192];
+    int total = 0;
+    int count;
+    while ((count = input.read(buffer)) != -1) {
+      total += count;
+      if (total > maximumBytes) throw new IllegalStateException("Downloaded content is too large");
+      output.write(buffer, 0, count);
+    }
+    return output.toByteArray();
   }
 
   private SecretKey createBiometricKey() throws Exception {
@@ -1041,24 +1231,9 @@ await mkdir(dirname(splashIconPath), { recursive: true });
 await writeFile(
   splashIconPath,
   `<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="160dp"
-        android:height="160dp"
-        android:gravity="center">
-        <shape android:shape="oval">
-            <solid android:color="#F4F6F4" />
-        </shape>
-    </item>
-    <item
-        android:width="112dp"
-        android:height="112dp"
-        android:gravity="center">
-        <bitmap
-            android:gravity="fill"
-            android:src="@drawable/vault_nest_splash_logo" />
-    </item>
-</layer-list>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/vault_nest_splash_logo"
+    android:inset="18%" />
 `,
   'utf8',
 );
@@ -1096,7 +1271,7 @@ if (await fileExists(stylesPath)) {
   const launchTheme = `    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#111B21</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
-        <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:background">@drawable/splash</item>
         <item name="android:statusBarColor">#111B21</item>
@@ -1147,7 +1322,7 @@ await writeFile(
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#111B21</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash_icon</item>
-        <item name="windowSplashScreenIconBackgroundColor">#F4F6F4</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:statusBarColor">#111B21</item>
         <item name="android:windowLightStatusBar">false</item>

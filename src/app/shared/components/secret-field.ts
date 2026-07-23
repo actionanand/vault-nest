@@ -56,6 +56,7 @@ import { AppIcon } from './app-icon';
     .value strong {
       overflow-wrap: anywhere;
       font-size: 0.9rem;
+      white-space: pre-wrap;
     }
     .actions {
       display: flex;

@@ -24,6 +24,7 @@ SQLite database encryption is not treated as the security boundary. Sensitive fi
 - No component imports a platform database API.
 - No plaintext password or secret index is permitted.
 - Search includes decrypted in-memory values only during an unlocked session and excludes sensitive fields by default.
+- Optional 2FA backup codes are stored only as `VaultItem.backupCodes` inside the encrypted item payload. They do not add a plaintext SQLite column or require a database migration.
 - Record deletion should first set `deletedAt`; physical deletion belongs to confirmed trash cleanup.
 
 ## Clear operations
@@ -39,3 +40,9 @@ Both Android operations execute inside SQLite database operations. The IndexedDB
 ## Planned tables/stores
 
 Value history, labels, item-label joins, attachments, security findings, recent activity, notification schedules, and backup transactions should become separate encrypted repositories. The schema must preserve streaming attachment access and avoid loading all blobs at once.
+
+## Credential artwork
+
+`VaultItem.icon` is part of the encrypted item payload. It can contain an empty automatic value, a `preset:` Lucide icon identifier, or a reduced `data:image/...` image. On Android, the native shell fetches the first Website/Application field directly, prioritises `og:image`, falls back to declared site icons, limits downloads, reduces the artwork to a maximum 192-pixel dimension, and returns only the reduced image.
+
+Saving the resulting data image through `VaultStore.save` places it permanently inside SQLite's `encrypted_payload`; no separate unencrypted image table or third-party favicon API is used. Compact encrypted backups therefore include the artwork automatically. Custom images use the same reduced data-image representation.
