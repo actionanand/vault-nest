@@ -81,4 +81,4 @@ Delivery time is controlled by Android and may be delayed by device battery opti
 
 ## Theme-aware option pickers
 
-Android's native HTML `select` overlay is rendered by the device or WebView and can remain light even when Vault Nest is dark. Field-type selection therefore uses the reusable Angular `SelectPicker` instead of a native `select`. On phones it opens as a bottom sheet; on larger screens it opens as a centred dialog. Both surfaces use Vault Nest theme variables, so Light, Dark, and Automatic modes remain consistent without relying on OEM dropdown styling.
+Android's native HTML `select` overlay is rendered by the device or WebView and can remain light even when Vault Nest is dark. Vault Nest therefore uses the reusable Angular `SelectPicker` for every dropdown, including vault sorting, field types, easy-login mode, failed-password limits, and trash retention. On phones it opens as a bottom sheet; on larger screens it opens as a centred dialog. Both surfaces use Vault Nest theme variables, so Light, Dark, and Automatic modes remain consistent without relying on OEM dropdown styling.

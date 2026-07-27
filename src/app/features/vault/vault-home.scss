@@ -84,23 +84,8 @@ h1 {
   display: grid;
 }
 .sort-control {
-  display: flex;
-  width: fit-content;
-  align-items: center;
-  gap: 0.4rem;
+  width: min(100%, 12rem);
   order: 1;
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-.sort-control select {
-  min-height: 2rem;
-  padding: 0.3rem 1.8rem 0.3rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.7rem;
 }
 .filter-row button {
   min-height: 2rem;
@@ -397,6 +382,6 @@ h1 {
     background: var(--surface);
   }
   .sort-control {
-    justify-content: space-between;
+    width: 100%;
   }
 }

@@ -8,10 +8,11 @@ import { VaultItemCard } from '../../shared/components/vault-item-card';
 import { VaultItemDetails } from '../item-details/vault-item-details';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { CredentialNotificationService } from '../../core/services/credential-notification.service';
+import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
 
 @Component({
   selector: 'app-vault-home',
-  imports: [RouterLink, AppIcon, VaultItemCard, VaultItemDetails, ConfirmationDialog],
+  imports: [RouterLink, AppIcon, VaultItemCard, VaultItemDetails, ConfirmationDialog, SelectPicker],
   templateUrl: './vault-home.html',
   styleUrl: './vault-home.scss',
   host: {
@@ -32,6 +33,11 @@ export class VaultHome {
   readonly templateBusy = signal(false);
   readonly filterOpen = signal(false);
   readonly sortOrder = signal<'UPDATED_DESC' | 'TITLE_ASC' | 'TITLE_DESC'>('UPDATED_DESC');
+  readonly sortOptions: readonly SelectPickerOption[] = [
+    { value: 'UPDATED_DESC', label: 'Recently updated' },
+    { value: 'TITLE_ASC', label: 'Title A–Z' },
+    { value: 'TITLE_DESC', label: 'Title Z–A' },
+  ];
   readonly cleanTrashOpen = signal(false);
   readonly cleaningTrash = signal(false);
   readonly selectedIds = signal<ReadonlySet<string>>(new Set());
@@ -104,8 +110,7 @@ export class VaultHome {
   setQuery(event: Event): void {
     this.vault.query.set((event.target as HTMLInputElement).value);
   }
-  setSortOrder(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
+  setSortOrder(value: string): void {
     if (['UPDATED_DESC', 'TITLE_ASC', 'TITLE_DESC'].includes(value)) {
       this.sortOrder.set(value as 'UPDATED_DESC' | 'TITLE_ASC' | 'TITLE_DESC');
     }
