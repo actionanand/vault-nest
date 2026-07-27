@@ -111,13 +111,15 @@
           Custom
         </button>
       </div>
-      <label class="sort-control"
-        >Sort<select [value]="sortOrder()" (change)="setSortOrder($event)">
-          <option value="UPDATED_DESC">Recently updated</option>
-          <option value="TITLE_ASC">Title A–Z</option>
-          <option value="TITLE_DESC">Title Z–A</option>
-        </select></label
-      >
+      <div class="sort-control">
+        <app-select-picker
+          label="Sort"
+          sheetTitle="Sort vault items"
+          [value]="sortOrder()"
+          [options]="sortOptions"
+          (valueChange)="setSortOrder($event)"
+        />
+      </div>
     </div>
     <div class="item-list">
       @for (item of items(); track item.id) {

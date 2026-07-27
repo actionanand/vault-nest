@@ -13,21 +13,30 @@ export interface SelectPickerOption {
   selector: 'app-select-picker',
   imports: [AppIcon],
   template: `
+    @if (label()) {
+      <span class="field-label">{{ label() }}</span>
+    }
     <button
       type="button"
       class="picker-trigger"
       [class.compact]="compact()"
       [disabled]="disabled()"
       [attr.aria-expanded]="open()"
+      [attr.aria-label]="label() || sheetTitle()"
       aria-haspopup="dialog"
       (click)="open.set(true)"
     >
-      @if (selectedOption()?.icon; as icon) {
-        <app-icon [name]="icon" />
-      }
-      <span>{{ selectedOption()?.label ?? placeholder() }}</span>
-      <app-icon name="chevron_down" />
+      <span class="picker-value">
+        @if (selectedOption()?.icon; as icon) {
+          <app-icon [name]="icon" />
+        }
+        <span>{{ selectedOption()?.label ?? placeholder() }}</span>
+      </span>
+      <app-icon class="picker-chevron" name="chevron_down" />
     </button>
+    @if (hint()) {
+      <small class="field-hint">{{ hint() }}</small>
+    }
 
     @if (open()) {
       <div class="picker-overlay">
@@ -85,6 +94,8 @@ export interface SelectPickerOption {
   },
 })
 export class SelectPicker {
+  readonly label = input('');
+  readonly hint = input('');
   readonly value = input('');
   readonly options = input.required<readonly SelectPickerOption[]>();
   readonly sheetTitle = input('Choose an option');

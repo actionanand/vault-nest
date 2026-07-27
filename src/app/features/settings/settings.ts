@@ -14,10 +14,11 @@ import { AuthStore } from '../../core/services/auth.store';
 import { IntrusionEvidenceService } from '../../core/services/intrusion-evidence.service';
 import { ScreenshotProtectionService } from '../../core/services/screenshot-protection.service';
 import { CsvExportService } from '../../core/services/csv-export.service';
+import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
 
 @Component({
   selector: 'app-settings',
-  imports: [AppIcon, ConfirmationDialog],
+  imports: [AppIcon, ConfirmationDialog, SelectPicker],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })
@@ -57,6 +58,51 @@ export class Settings implements OnInit {
   readonly pendingEasyUnlockMode = signal<Exclude<EasyUnlockMode, 'DISABLED'> | null>(null);
   readonly easyLoginPassword = signal('');
   readonly securityBusy = signal(false);
+  readonly easyLoginOptions: readonly SelectPickerOption[] = [
+    {
+      value: 'DISABLED',
+      label: 'Disabled (recommended)',
+      detail: 'Always require the full master password or biometric',
+    },
+    {
+      value: 'FIRST_4',
+      label: 'First 4 characters',
+      detail: 'Use the beginning of the master password',
+    },
+    {
+      value: 'LAST_4',
+      label: 'Last 4 characters',
+      detail: 'Use the end of the master password',
+    },
+  ];
+  readonly unlockAttemptOptions: readonly SelectPickerOption[] = [
+    {
+      value: 'unlimited',
+      label: 'Unlimited (default)',
+      detail: 'Five failures trigger escalating cooldowns',
+    },
+    {
+      value: '3',
+      label: '3 attempts',
+      detail: 'Deletes the local account after the third failure',
+    },
+    {
+      value: '5',
+      label: '5 attempts',
+      detail: 'Deletes the local account after the fifth failure',
+    },
+    {
+      value: '10',
+      label: '10 attempts',
+      detail: 'Deletes the local account after the tenth failure',
+    },
+  ];
+  readonly trashRetentionOptions: readonly SelectPickerOption[] = [
+    { value: '7', label: '7 days' },
+    { value: '30', label: '30 days' },
+    { value: '90', label: '90 days' },
+    { value: '0', label: 'Never automatically delete' },
+  ];
   async ngOnInit(): Promise<void> {
     const preferences = {
       ...DEFAULT_PREFERENCES,
@@ -78,15 +124,13 @@ export class Settings implements OnInit {
       this.screenshotProtection.apply(updated.screenshotProtection);
     }
   }
-  async setMaxUnlockAttempts(event: Event): Promise<void> {
-    const select = event.target as HTMLSelectElement;
-    const rawValue = select.value;
+  async setMaxUnlockAttempts(rawValue: string): Promise<void> {
+    if (!['unlimited', '3', '5', '10'].includes(rawValue)) return;
     const maxUnlockAttempts = rawValue === 'unlimited' ? null : Number(rawValue);
     if (maxUnlockAttempts !== null) {
       this.pendingMaxUnlockAttempts.set(maxUnlockAttempts);
       this.attemptLimitConfirmationOpen.set(true);
       this.attemptSelectValue.set(this.preferences().maxUnlockAttempts?.toString() ?? 'unlimited');
-      select.value = this.preferences().maxUnlockAttempts?.toString() ?? 'unlimited';
       return;
     }
     await this.saveMaxUnlockAttempts(null);
@@ -125,10 +169,9 @@ export class Settings implements OnInit {
     this.message.set('Clipboard cleared');
     setTimeout(() => this.message.set(''), 1800);
   }
-  async changeEasyLogin(event: Event): Promise<void> {
-    const select = event.target as HTMLSelectElement;
-    const mode = select.value as EasyUnlockMode;
-    select.value = this.preferences().easyUnlockMode;
+  async changeEasyLogin(value: string): Promise<void> {
+    if (!['DISABLED', 'FIRST_4', 'LAST_4'].includes(value)) return;
+    const mode = value as EasyUnlockMode;
     if (mode === 'DISABLED') {
       await this.auth.disableEasyUnlock();
       this.preferences.update((value) => ({ ...value, easyUnlockMode: 'DISABLED' }));
@@ -229,8 +272,8 @@ export class Settings implements OnInit {
   setBackupConfirmation(event: Event): void {
     this.backupConfirmation.set((event.target as HTMLInputElement).value);
   }
-  setRetention(event: Event): void {
-    this.retentionSelectValue.set((event.target as HTMLSelectElement).value);
+  setRetention(value: string): void {
+    if (['0', '7', '30', '90'].includes(value)) this.retentionSelectValue.set(value);
   }
   openTrashRetention(): void {
     this.retentionSelectValue.set(this.preferences().trashRetentionDays.toString());
