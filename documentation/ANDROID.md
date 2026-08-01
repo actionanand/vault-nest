@@ -7,7 +7,7 @@ The workflow supports both outcomes:
 - When all signing secrets are configured and signing succeeds, it creates a signed APK and signed AAB.
 - When the keystore is missing, secrets are incomplete, or signing fails, it creates clearly named unsigned APK and AAB files.
 
-The build log and GitHub job summary show emoji-labelled artifact results such as `SIGNED APK`, `UNSIGNED APK`, `SIGNED AAB`, and `UNSIGNED AAB`, including the generated paths.
+The build log and GitHub job summary show emoji-labelled artifact results such as `SIGNED APK`, `UNSIGNED APK`, `SIGNED AAB`, `UNSIGNED AAB`, and `R8 mapping`, including the generated paths.
 
 Android release-signing secrets are used only by `keytool`, `apksigner`, and `jarsigner` during CI. Vault Nest does not inject application-login secrets, master passwords, or SHA1 hashes into the app.
 
@@ -16,10 +16,10 @@ Android release-signing secrets are used only by `keytool`, `apksigner`, and `ja
 | File                                  | Purpose                                                                                                                |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `capacitor.config.ts`                 | App ID, app name, web output directory, Android background color, splash behavior, and notification icon configuration |
-| `.github/workflows/android-build.yml` | Builds, optionally signs, verifies, summarizes, and uploads APK/AAB files                                              |
+| `.github/workflows/android-build.yml` | Builds, optionally signs, verifies, summarizes, and uploads APK/AAB and R8 mapping files                               |
 | `android-version.json`                | Stores Android `versionCode` and `versionName`                                                                         |
 | `scripts/bump-android-version.js`     | Updates Android release version values                                                                                 |
-| `scripts/patch-android.mjs`           | Adds Android backup/restore, biometric, system-bar, camera evidence, and notification-icon native patches              |
+| `scripts/patch-android.mjs`           | Adds native features, enables R8/resource shrinking, and protects WebView JavaScript interfaces                        |
 | `scripts/generate-keystore.mjs`       | Generates a PKCS12 Android release keystore                                                                            |
 | `scripts/detect-keystore-format.mjs`  | Displays the keystore type                                                                                             |
 | `public/vault-nest.png`               | Source image for launcher, splash, and Play Store icons                                                                |
@@ -206,7 +206,7 @@ git push origin main-android
 
 ```yaml
 MIN_SDK_VERSION: 24
-TARGET_SDK_VERSION: 35
+TARGET_SDK_VERSION: 36
 ```
 
 Raise the target SDK when Google Play requirements change and verify Capacitor compatibility before merging.
