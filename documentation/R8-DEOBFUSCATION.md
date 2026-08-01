@@ -57,6 +57,19 @@ The rules are deliberately narrow. Vault Nest does not use a global `-ignorewarn
 not suppress unrelated missing classes, and does not disable Tink optimization. A future missing
 class will still fail CI and must be reviewed separately.
 
+### SQLCipher JNI compatibility
+
+The SQLite plugin loads SQLCipher through JNI. R8 must preserve the runtime names and descriptors
+of the Java classes resolved by that native layer:
+
+```proguard
+-keep,includedescriptorclasses class net.zetetic.database.sqlcipher.** { *; }
+-keep,includedescriptorclasses interface net.zetetic.database.sqlcipher.** { *; }
+```
+
+These are SQLCipher's targeted compatibility rules. They protect database behavior without
+disabling optimization for the rest of Vault Nest.
+
 ## Mapping-file generation and retention
 
 Every optimized release generates a mapping at:
