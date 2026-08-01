@@ -117,6 +117,12 @@ if (!gradle.includes('shrinkResources true')) {
     'minifyEnabled true\n            shrinkResources true',
   );
 }
+if (!gradle.includes("debugSymbolLevel 'SYMBOL_TABLE'")) {
+  gradle = gradle.replace(
+    /shrinkResources\s+true/,
+    "shrinkResources true\n            ndk {\n                debugSymbolLevel 'SYMBOL_TABLE'\n            }",
+  );
+}
 if (!gradle.includes('androidx.biometric:biometric')) {
   gradle = gradle.replace(
     /dependencies\s*\{/,
@@ -126,9 +132,12 @@ if (!gradle.includes('androidx.biometric:biometric')) {
 if (
   !gradle.includes('minifyEnabled true') ||
   !gradle.includes('shrinkResources true') ||
+  !gradle.includes("debugSymbolLevel 'SYMBOL_TABLE'") ||
   !gradle.includes("getDefaultProguardFile('proguard-android-optimize.txt')")
 ) {
-  throw new Error('Unable to enable R8 and resource shrinking in the generated release build.');
+  throw new Error(
+    'Unable to enable R8, resource shrinking, and native debug symbols in the generated release build.',
+  );
 }
 await writeFile(gradlePath, gradle, 'utf8');
 

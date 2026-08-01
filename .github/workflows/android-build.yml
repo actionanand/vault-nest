@@ -99,7 +99,7 @@ jobs:
       - name: Clear previous Android release artifacts
         run: |
           mkdir -p releases
-          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig releases/*-mapping.txt
+          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig releases/*-mapping.txt releases/*-native-debug-symbols.zip
       - name: Build unsigned release artifacts
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME"
@@ -112,6 +112,15 @@ jobs:
           cp "$MAPPING_SOURCE" "$MAPPING_TARGET"
           echo "MAPPING_TARGET=$MAPPING_TARGET" >> "$GITHUB_ENV"
           echo "🗺️ R8 deobfuscation mapping created: $MAPPING_TARGET"
+
+      - name: Preserve native debug symbols
+        run: |
+          SYMBOLS_SOURCE="android/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip"
+          SYMBOLS_TARGET="releases/${RELEASE_FILE_BASENAME}-native-debug-symbols.zip"
+          test -s "$SYMBOLS_SOURCE"
+          cp "$SYMBOLS_SOURCE" "$SYMBOLS_TARGET"
+          echo "SYMBOLS_TARGET=$SYMBOLS_TARGET" >> "$GITHUB_ENV"
+          echo "🧩 Native debug symbols created: $SYMBOLS_TARGET"
 
       - name: Decode release keystore
         id: keystore
@@ -232,11 +241,18 @@ jobs:
             MAPPING_STATUS="❌ R8 mapping was not created"
           fi
           echo "$MAPPING_STATUS"
+          if [[ -s "$SYMBOLS_TARGET" ]]; then
+            SYMBOLS_STATUS="🧩 Native debug symbols created: $SYMBOLS_TARGET"
+          else
+            SYMBOLS_STATUS="❌ Native debug symbols were not created"
+          fi
+          echo "$SYMBOLS_STATUS"
           {
             echo "## 📦 Android artifact summary"
             echo "- $APK_STATUS"
             echo "- $AAB_STATUS"
             echo "- $MAPPING_STATUS"
+            echo "- $SYMBOLS_STATUS"
           } >> "$GITHUB_STEP_SUMMARY"
           if [[ -d releases ]]; then
             ls -lh releases/
@@ -250,6 +266,7 @@ jobs:
           test -s "releases/${RELEASE_FILE_BASENAME}.apk" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
           test -s "releases/${RELEASE_FILE_BASENAME}.aab" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
           test -s "$MAPPING_TARGET"
+          test -s "$SYMBOLS_TARGET"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash
@@ -259,7 +276,7 @@ jobs:
           else
             git commit -m "build: update Android release files [skip ci]"
             git push
-            echo "✅ APK, AAB, R8 mapping, and Play Store icon committed to main-android/releases."
+            echo "✅ APK, AAB, R8 mapping, native symbols, and Play Store icon committed to main-android/releases."
           fi
 
       - name: Remove decoded signing key
@@ -273,6 +290,7 @@ jobs:
             releases/*.apk
             releases/*.aab
             releases/*-mapping.txt
+            releases/*-native-debug-symbols.zip
             releases/playstore-icon.png
           if-no-files-found: error
           retention-days: 30
