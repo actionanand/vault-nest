@@ -152,6 +152,11 @@ const tinkAnnotationRules = `
 -dontwarn javax.annotation.Nullable
 -dontwarn javax.annotation.concurrent.GuardedBy
 `;
+const sqlCipherKeepRules = `
+# SQLCipher classes are resolved from its JNI layer and must retain their runtime names.
+-keep,includedescriptorclasses class net.zetetic.database.sqlcipher.** { *; }
+-keep,includedescriptorclasses interface net.zetetic.database.sqlcipher.** { *; }
+`;
 let proguardRules = (await fileExists(proguardPath)) ? await readFile(proguardPath, 'utf8') : '';
 if (!proguardRules.includes('@android.webkit.JavascriptInterface <methods>')) {
   proguardRules = `${proguardRules.trimEnd()}${webViewKeepRules}`;
@@ -161,6 +166,9 @@ if (
   !proguardRules.includes('-dontwarn javax.annotation.concurrent.GuardedBy')
 ) {
   proguardRules = `${proguardRules.trimEnd()}${tinkAnnotationRules}`;
+}
+if (!proguardRules.includes('class net.zetetic.database.sqlcipher.**')) {
+  proguardRules = `${proguardRules.trimEnd()}${sqlCipherKeepRules}`;
 }
 await writeFile(proguardPath, proguardRules, 'utf8');
 
