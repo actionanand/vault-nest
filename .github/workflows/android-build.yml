@@ -15,7 +15,7 @@ concurrency:
 
 env:
   MIN_SDK_VERSION: 24
-  TARGET_SDK_VERSION: 35
+  TARGET_SDK_VERSION: 36
   RELEASE_BASENAME: vault-nest-release
 
 jobs:
@@ -99,10 +99,19 @@ jobs:
       - name: Clear previous Android release artifacts
         run: |
           mkdir -p releases
-          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig
+          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig releases/*-mapping.txt
       - name: Build unsigned release artifacts
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME"
+
+      - name: Preserve R8 deobfuscation mapping
+        run: |
+          MAPPING_SOURCE="android/app/build/outputs/mapping/release/mapping.txt"
+          MAPPING_TARGET="releases/${RELEASE_FILE_BASENAME}-mapping.txt"
+          test -s "$MAPPING_SOURCE"
+          cp "$MAPPING_SOURCE" "$MAPPING_TARGET"
+          echo "MAPPING_TARGET=$MAPPING_TARGET" >> "$GITHUB_ENV"
+          echo "🗺️ R8 deobfuscation mapping created: $MAPPING_TARGET"
 
       - name: Decode release keystore
         id: keystore
@@ -217,10 +226,17 @@ jobs:
           fi
           echo "$APK_STATUS"
           echo "$AAB_STATUS"
+          if [[ -s "$MAPPING_TARGET" ]]; then
+            MAPPING_STATUS="🗺️ R8 mapping created: $MAPPING_TARGET"
+          else
+            MAPPING_STATUS="❌ R8 mapping was not created"
+          fi
+          echo "$MAPPING_STATUS"
           {
             echo "## 📦 Android artifact summary"
             echo "- $APK_STATUS"
             echo "- $AAB_STATUS"
+            echo "- $MAPPING_STATUS"
           } >> "$GITHUB_STEP_SUMMARY"
           if [[ -d releases ]]; then
             ls -lh releases/
@@ -233,6 +249,7 @@ jobs:
         run: |
           test -s "releases/${RELEASE_FILE_BASENAME}.apk" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
           test -s "releases/${RELEASE_FILE_BASENAME}.aab" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
+          test -s "$MAPPING_TARGET"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash
@@ -242,7 +259,7 @@ jobs:
           else
             git commit -m "build: update Android release files [skip ci]"
             git push
-            echo "✅ APK, AAB, and Play Store icon committed to main-android/releases."
+            echo "✅ APK, AAB, R8 mapping, and Play Store icon committed to main-android/releases."
           fi
 
       - name: Remove decoded signing key
@@ -255,6 +272,7 @@ jobs:
           path: |
             releases/*.apk
             releases/*.aab
+            releases/*-mapping.txt
             releases/playstore-icon.png
           if-no-files-found: error
           retention-days: 30

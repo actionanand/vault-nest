@@ -36,6 +36,7 @@ const legacyCredentialReceiverPath = resolve(
 );
 const manifestPath = resolve('android/app/src/main/AndroidManifest.xml');
 const gradlePath = resolve('android/app/build.gradle');
+const proguardPath = resolve('android/app/proguard-rules.pro');
 const notificationIconPath = resolve('android/app/src/main/res/drawable/ic_stat_vault_nest.xml');
 const resPath = resolve('android/app/src/main/res');
 const splashLogoSourcePath = resolve('public/vault-nest.png');
@@ -104,12 +105,44 @@ if (await fileExists(legacyCredentialReceiverPath)) {
 }
 
 let gradle = await readFile(gradlePath, 'utf8');
+gradle = gradle
+  .replace(/minifyEnabled\s+false/, 'minifyEnabled true')
+  .replace(
+    /getDefaultProguardFile\(['"]proguard-android\.txt['"]\)/,
+    "getDefaultProguardFile('proguard-android-optimize.txt')",
+  );
+if (!gradle.includes('shrinkResources true')) {
+  gradle = gradle.replace(
+    /minifyEnabled\s+true/,
+    'minifyEnabled true\n            shrinkResources true',
+  );
+}
 if (!gradle.includes('androidx.biometric:biometric')) {
   gradle = gradle.replace(
     /dependencies\s*\{/,
     "dependencies {\n    implementation 'androidx.biometric:biometric:1.1.0'",
   );
-  await writeFile(gradlePath, gradle, 'utf8');
+}
+if (
+  !gradle.includes('minifyEnabled true') ||
+  !gradle.includes('shrinkResources true') ||
+  !gradle.includes("getDefaultProguardFile('proguard-android-optimize.txt')")
+) {
+  throw new Error('Unable to enable R8 and resource shrinking in the generated release build.');
+}
+await writeFile(gradlePath, gradle, 'utf8');
+
+const webViewKeepRules = `
+# Vault Nest exposes native methods to Angular through WebView JavaScript interfaces.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+`;
+const existingProguardRules = (await fileExists(proguardPath))
+  ? await readFile(proguardPath, 'utf8')
+  : '';
+if (!existingProguardRules.includes('@android.webkit.JavascriptInterface <methods>')) {
+  await writeFile(proguardPath, `${existingProguardRules.trimEnd()}${webViewKeepRules}`, 'utf8');
 }
 
 await mkdir(dirname(notificationIconPath), { recursive: true });
