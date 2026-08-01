@@ -41,6 +41,22 @@ methods are resolved by name at runtime, so the patch adds this keep rule to
 This prevents R8 from removing or renaming annotated bridge methods while allowing unrelated code
 to be optimized.
 
+### Google Tink annotation compatibility
+
+Vault Nest uses Google Tink for cryptographic operations. Tink's bytecode references two
+compile-time `javax.annotation` types that are not present in the Android runtime. R8 reports those
+references during its whole-program analysis even though the annotations are not required while
+the application runs. The native patch therefore adds only these two compatibility rules:
+
+```proguard
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy
+```
+
+The rules are deliberately narrow. Vault Nest does not use a global `-ignorewarnings` rule, does
+not suppress unrelated missing classes, and does not disable Tink optimization. A future missing
+class will still fail CI and must be reviewed separately.
+
 ## Mapping-file generation and retention
 
 Every optimized release generates a mapping at:
