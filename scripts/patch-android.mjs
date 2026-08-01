@@ -138,12 +138,22 @@ const webViewKeepRules = `
     @android.webkit.JavascriptInterface <methods>;
 }
 `;
-const existingProguardRules = (await fileExists(proguardPath))
-  ? await readFile(proguardPath, 'utf8')
-  : '';
-if (!existingProguardRules.includes('@android.webkit.JavascriptInterface <methods>')) {
-  await writeFile(proguardPath, `${existingProguardRules.trimEnd()}${webViewKeepRules}`, 'utf8');
+const tinkAnnotationRules = `
+# Google Tink references these compile-time annotations, which are not required at runtime.
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy
+`;
+let proguardRules = (await fileExists(proguardPath)) ? await readFile(proguardPath, 'utf8') : '';
+if (!proguardRules.includes('@android.webkit.JavascriptInterface <methods>')) {
+  proguardRules = `${proguardRules.trimEnd()}${webViewKeepRules}`;
 }
+if (
+  !proguardRules.includes('-dontwarn javax.annotation.Nullable') ||
+  !proguardRules.includes('-dontwarn javax.annotation.concurrent.GuardedBy')
+) {
+  proguardRules = `${proguardRules.trimEnd()}${tinkAnnotationRules}`;
+}
+await writeFile(proguardPath, proguardRules, 'utf8');
 
 await mkdir(dirname(notificationIconPath), { recursive: true });
 await writeFile(
