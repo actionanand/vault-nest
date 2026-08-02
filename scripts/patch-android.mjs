@@ -36,7 +36,6 @@ const legacyCredentialReceiverPath = resolve(
 );
 const manifestPath = resolve('android/app/src/main/AndroidManifest.xml');
 const gradlePath = resolve('android/app/build.gradle');
-const proguardPath = resolve('android/app/proguard-rules.pro');
 const notificationIconPath = resolve('android/app/src/main/res/drawable/ic_stat_vault_nest.xml');
 const resPath = resolve('android/app/src/main/res');
 const splashLogoSourcePath = resolve('public/vault-nest.png');
@@ -105,72 +104,13 @@ if (await fileExists(legacyCredentialReceiverPath)) {
 }
 
 let gradle = await readFile(gradlePath, 'utf8');
-gradle = gradle
-  .replace(/minifyEnabled\s+false/, 'minifyEnabled true')
-  .replace(
-    /getDefaultProguardFile\(['"]proguard-android\.txt['"]\)/,
-    "getDefaultProguardFile('proguard-android-optimize.txt')",
-  );
-if (!gradle.includes('shrinkResources true')) {
-  gradle = gradle.replace(
-    /minifyEnabled\s+true/,
-    'minifyEnabled true\n            shrinkResources true',
-  );
-}
-if (!gradle.includes("debugSymbolLevel 'SYMBOL_TABLE'")) {
-  gradle = gradle.replace(
-    /shrinkResources\s+true/,
-    "shrinkResources true\n            ndk {\n                debugSymbolLevel 'SYMBOL_TABLE'\n            }",
-  );
-}
 if (!gradle.includes('androidx.biometric:biometric')) {
   gradle = gradle.replace(
     /dependencies\s*\{/,
     "dependencies {\n    implementation 'androidx.biometric:biometric:1.1.0'",
   );
+  await writeFile(gradlePath, gradle, 'utf8');
 }
-if (
-  !gradle.includes('minifyEnabled true') ||
-  !gradle.includes('shrinkResources true') ||
-  !gradle.includes("debugSymbolLevel 'SYMBOL_TABLE'") ||
-  !gradle.includes("getDefaultProguardFile('proguard-android-optimize.txt')")
-) {
-  throw new Error(
-    'Unable to enable R8, resource shrinking, and native debug symbols in the generated release build.',
-  );
-}
-await writeFile(gradlePath, gradle, 'utf8');
-
-const webViewKeepRules = `
-# Vault Nest exposes native methods to Angular through WebView JavaScript interfaces.
--keepclassmembers class * {
-    @android.webkit.JavascriptInterface <methods>;
-}
-`;
-const tinkAnnotationRules = `
-# Google Tink references these compile-time annotations, which are not required at runtime.
--dontwarn javax.annotation.Nullable
--dontwarn javax.annotation.concurrent.GuardedBy
-`;
-const sqlCipherKeepRules = `
-# SQLCipher classes are resolved from its JNI layer and must retain their runtime names.
--keep,includedescriptorclasses class net.zetetic.database.sqlcipher.** { *; }
--keep,includedescriptorclasses interface net.zetetic.database.sqlcipher.** { *; }
-`;
-let proguardRules = (await fileExists(proguardPath)) ? await readFile(proguardPath, 'utf8') : '';
-if (!proguardRules.includes('@android.webkit.JavascriptInterface <methods>')) {
-  proguardRules = `${proguardRules.trimEnd()}${webViewKeepRules}`;
-}
-if (
-  !proguardRules.includes('-dontwarn javax.annotation.Nullable') ||
-  !proguardRules.includes('-dontwarn javax.annotation.concurrent.GuardedBy')
-) {
-  proguardRules = `${proguardRules.trimEnd()}${tinkAnnotationRules}`;
-}
-if (!proguardRules.includes('class net.zetetic.database.sqlcipher.**')) {
-  proguardRules = `${proguardRules.trimEnd()}${sqlCipherKeepRules}`;
-}
-await writeFile(proguardPath, proguardRules, 'utf8');
 
 await mkdir(dirname(notificationIconPath), { recursive: true });
 await writeFile(
