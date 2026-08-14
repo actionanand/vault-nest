@@ -37,7 +37,14 @@
   <section>
     <h2>Security</h2>
     <div class="setting-card rows">
-      <button type="button" (click)="toggle('lockOnBackground')">
+      <button type="button" (click)="openChangePassword()">
+        <span
+          ><app-icon name="lock" /><span
+            ><strong>Change master password</strong
+            ><small>Set a new master password after verifying your identity</small></span
+          ></span
+        ><app-icon name="chevron_down" /></button
+      ><button type="button" (click)="toggle('lockOnBackground')">
         <span
           ><app-icon name="lock" /><span
             ><strong>Lock in background</strong
@@ -404,6 +411,107 @@
             (click)="confirmEasyLogin()"
           >
             Enable easy login
+          </button>
+        </div>
+      </section>
+    </div>
+  }
+  @if (changePasswordDialogOpen()) {
+    <div class="settings-dialog-backdrop" role="presentation">
+      <section
+        class="settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="change-password-dialog-title"
+      >
+        <div>
+          <h2 id="change-password-dialog-title">Change master password</h2>
+          <p>
+            Your vault data stays encrypted. Verify your identity, then choose a new master
+            password. Easy login is turned off and must be set up again afterwards.
+          </p>
+        </div>
+        @if (canUseBiometricForChange()) {
+          <div class="verify-method" role="group" aria-label="Verification method">
+            <button
+              type="button"
+              [attr.aria-pressed]="changePasswordMethod() === 'PASSWORD'"
+              [class.active]="changePasswordMethod() === 'PASSWORD'"
+              (click)="setChangePasswordMethod('PASSWORD')"
+            >
+              <app-icon name="lock" />Master password
+            </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="changePasswordMethod() === 'BIOMETRIC'"
+              [class.active]="changePasswordMethod() === 'BIOMETRIC'"
+              (click)="setChangePasswordMethod('BIOMETRIC')"
+            >
+              <app-icon name="biometric" />Biometric
+            </button>
+          </div>
+        }
+        @if (changePasswordMethod() === 'PASSWORD') {
+          <label
+            >Current master password<input
+              type="password"
+              autocomplete="current-password"
+              [value]="currentMasterPassword()"
+              (input)="setCurrentMasterPassword($event)"
+          /></label>
+        } @else {
+          <p class="setting-note">
+            You will be asked to confirm with Android biometrics when you continue.
+          </p>
+        }
+        <label
+          >New master password<input
+            type="password"
+            autocomplete="new-password"
+            [value]="newMasterPassword()"
+            (input)="setNewMasterPassword($event)"
+        /></label>
+        <ul class="password-rules" aria-label="Password requirements">
+          <li [class.met]="newMasterPasswordMeets('length')">At least 12 characters</li>
+          <li [class.met]="newMasterPasswordMeets('lowercase')">A lowercase letter</li>
+          <li [class.met]="newMasterPasswordMeets('uppercase')">An uppercase letter</li>
+          <li [class.met]="newMasterPasswordMeets('number')">A number</li>
+          <li [class.met]="newMasterPasswordMeets('symbol')">A symbol</li>
+        </ul>
+        <label
+          >Confirm new master password<input
+            type="password"
+            autocomplete="new-password"
+            [value]="confirmMasterPassword()"
+            (input)="setConfirmMasterPassword($event)"
+        /></label>
+        <label
+          >Password hint (optional)<input
+            type="text"
+            autocomplete="off"
+            maxlength="120"
+            [value]="changePasswordHint()"
+            (input)="setChangePasswordHint($event)"
+        /></label>
+        @if (changePasswordError()) {
+          <p class="dialog-error" role="alert">{{ changePasswordError() }}</p>
+        }
+        <div class="settings-dialog-actions">
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="changePasswordBusy()"
+            (click)="closeChangePassword()"
+          >
+            Cancel
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="changePasswordBusy()"
+            (click)="submitChangePassword()"
+          >
+            {{ changePasswordBusy() ? 'Changing…' : 'Change password' }}
           </button>
         </div>
       </section>

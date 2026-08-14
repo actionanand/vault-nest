@@ -53,6 +53,29 @@ export class VaultCryptoService {
     }
   }
 
+  async changePassword(
+    key: CryptoKey,
+    newPassword: string,
+    header: VaultHeader,
+    passwordHint?: string,
+  ): Promise<VaultHeader> {
+    const salt = crypto.getRandomValues(new Uint8Array(32));
+    const wrappingKey = await this.deriveKey(newPassword, salt, DEFAULT_ITERATIONS);
+    const raw = await this.exportVaultKey(key);
+    try {
+      const wrappedVaultKey = await this.encryptBytes(raw, wrappingKey, 'vault-key:v1');
+      return {
+        ...header,
+        salt: this.toBase64(salt),
+        iterations: DEFAULT_ITERATIONS,
+        wrappedVaultKey,
+        passwordHint: passwordHint || undefined,
+      };
+    } finally {
+      raw.fill(0);
+    }
+  }
+
   async exportVaultKey(key: CryptoKey): Promise<Uint8Array<ArrayBuffer>> {
     return new Uint8Array(await crypto.subtle.exportKey('raw', key));
   }

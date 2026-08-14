@@ -58,6 +58,14 @@ export class Settings implements OnInit {
   readonly pendingEasyUnlockMode = signal<Exclude<EasyUnlockMode, 'DISABLED'> | null>(null);
   readonly easyLoginPassword = signal('');
   readonly securityBusy = signal(false);
+  readonly changePasswordDialogOpen = signal(false);
+  readonly changePasswordBusy = signal(false);
+  readonly changePasswordError = signal('');
+  readonly changePasswordMethod = signal<'PASSWORD' | 'BIOMETRIC'>('PASSWORD');
+  readonly currentMasterPassword = signal('');
+  readonly newMasterPassword = signal('');
+  readonly confirmMasterPassword = signal('');
+  readonly changePasswordHint = signal('');
   readonly easyLoginOptions: readonly SelectPickerOption[] = [
     {
       value: 'DISABLED',
@@ -202,6 +210,98 @@ export class Settings implements OnInit {
       }
     } finally {
       this.securityBusy.set(false);
+    }
+  }
+  openChangePassword(): void {
+    this.changePasswordError.set('');
+    this.currentMasterPassword.set('');
+    this.newMasterPassword.set('');
+    this.confirmMasterPassword.set('');
+    this.changePasswordHint.set(this.auth.hint());
+    this.changePasswordMethod.set('PASSWORD');
+    this.changePasswordDialogOpen.set(true);
+  }
+  closeChangePassword(): void {
+    this.changePasswordDialogOpen.set(false);
+    this.changePasswordError.set('');
+    this.currentMasterPassword.set('');
+    this.newMasterPassword.set('');
+    this.confirmMasterPassword.set('');
+    this.changePasswordHint.set('');
+  }
+  setCurrentMasterPassword(event: Event): void {
+    this.currentMasterPassword.set((event.target as HTMLInputElement).value);
+  }
+  setNewMasterPassword(event: Event): void {
+    this.newMasterPassword.set((event.target as HTMLInputElement).value);
+  }
+  setConfirmMasterPassword(event: Event): void {
+    this.confirmMasterPassword.set((event.target as HTMLInputElement).value);
+  }
+  setChangePasswordHint(event: Event): void {
+    this.changePasswordHint.set((event.target as HTMLInputElement).value);
+  }
+  setChangePasswordMethod(method: 'PASSWORD' | 'BIOMETRIC'): void {
+    this.changePasswordMethod.set(method);
+    this.changePasswordError.set('');
+  }
+  canUseBiometricForChange(): boolean {
+    return this.auth.biometricAvailable() && this.preferences().biometricEnabled;
+  }
+  newMasterPasswordMeets(
+    condition: 'length' | 'lowercase' | 'uppercase' | 'number' | 'symbol',
+  ): boolean {
+    const password = this.newMasterPassword();
+    const tests = {
+      length: password.length >= 12,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password),
+      symbol: /[^A-Za-z0-9\s]/.test(password),
+    };
+    return tests[condition];
+  }
+  private newMasterPasswordIsStrong(): boolean {
+    return (['length', 'lowercase', 'uppercase', 'number', 'symbol'] as const).every((condition) =>
+      this.newMasterPasswordMeets(condition),
+    );
+  }
+  async submitChangePassword(): Promise<void> {
+    this.changePasswordError.set('');
+    const useBiometric = this.changePasswordMethod() === 'BIOMETRIC';
+    if (!this.newMasterPasswordIsStrong()) {
+      this.changePasswordError.set('The new master password does not meet the requirements.');
+      return;
+    }
+    if (this.newMasterPassword() !== this.confirmMasterPassword()) {
+      this.changePasswordError.set('The new master passwords do not match.');
+      return;
+    }
+    if (!useBiometric && !this.currentMasterPassword()) {
+      this.changePasswordError.set('Enter your current master password.');
+      return;
+    }
+    this.changePasswordBusy.set(true);
+    try {
+      const result = await this.auth.changeMasterPassword({
+        newPassword: this.newMasterPassword(),
+        passwordHint: this.changePasswordHint().trim() || undefined,
+        currentPassword: useBiometric ? undefined : this.currentMasterPassword(),
+        useBiometric,
+      });
+      if (!result.ok) {
+        this.changePasswordError.set(result.message ?? 'The master password could not be changed.');
+        return;
+      }
+      this.preferences.update((value) => ({
+        ...value,
+        easyUnlockMode: this.auth.easyUnlockMode(),
+      }));
+      this.closeChangePassword();
+      this.message.set('Master password changed');
+      setTimeout(() => this.message.set(''), 2500);
+    } finally {
+      this.changePasswordBusy.set(false);
     }
   }
   async toggleBiometric(): Promise<void> {
