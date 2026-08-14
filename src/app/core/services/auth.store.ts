@@ -152,6 +152,53 @@ export class AuthStore {
     }
   }
 
+  async changeMasterPassword(options: {
+    newPassword: string;
+    passwordHint?: string;
+    currentPassword?: string;
+    useBiometric?: boolean;
+  }): Promise<{ ok: boolean; message?: string }> {
+    if (!this.header || !this.vaultKey) return { ok: false, message: 'The vault is locked.' };
+    let verifiedKey: CryptoKey;
+    if (options.useBiometric) {
+      try {
+        const raw = await this.biometrics.authenticate();
+        try {
+          verifiedKey = await this.vaultCrypto.importVaultKey(raw);
+        } finally {
+          raw.fill(0);
+        }
+      } catch (error: unknown) {
+        return {
+          ok: false,
+          message: error instanceof Error ? error.message : 'Biometric authentication failed.',
+        };
+      }
+    } else {
+      if (!options.currentPassword)
+        return { ok: false, message: 'Enter your current master password.' };
+      try {
+        verifiedKey = await this.vaultCrypto.unlock(options.currentPassword, this.header);
+      } catch {
+        return { ok: false, message: 'The current master password is incorrect.' };
+      }
+    }
+    const updatedHeader = await this.vaultCrypto.changePassword(
+      verifiedKey,
+      options.newPassword,
+      this.header,
+      options.passwordHint,
+    );
+    await this.storage.saveHeader(updatedHeader);
+    this.header = updatedHeader;
+    this.vaultKey = verifiedKey;
+    // Easy-login codes were derived from the previous password, so retire them.
+    if (this.easyUnlockMode() !== 'DISABLED') await this.disableEasyUnlock();
+    this.error.set(null);
+    this.touch();
+    return { ok: true };
+  }
+
   lock(): void {
     this.vaultKey = null;
     this.intrusionEvidence.setVaultUnlocked(false);
