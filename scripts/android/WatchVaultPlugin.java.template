@@ -60,7 +60,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
   private static final SecureRandom RANDOM = new SecureRandom();
 
   @Override
-  protected void load() {
+  public void load() {
     try {
       Wearable.getMessageClient(getContext()).addListener(this);
     } catch (Exception ignored) {
