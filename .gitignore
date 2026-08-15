@@ -44,6 +44,10 @@ __screenshots__/
 release-keystore.jks
 keystore.b64.txt
 *.vaultpack
+/wear/.gradle/
+/wear/**/build/
+/wear/release-keystore.jks
+/wear/app/src/main/res/drawable-nodpi/vault_nest_brand.png
 
 # System files
 .DS_Store

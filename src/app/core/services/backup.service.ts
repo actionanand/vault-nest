@@ -70,6 +70,8 @@ export class BackupService {
         easyUnlockMode: 'DISABLED',
         biometricEnabled: false,
         intrusionEvidenceEnabled: false,
+        watchVaultLastSyncedAt: undefined,
+        watchVaultSyncedVersions: {},
       },
       vaultKey: this.toBase64(rawVaultKey),
       items: await Promise.all(

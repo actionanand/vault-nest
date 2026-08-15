@@ -5,6 +5,7 @@ import { StorageEngine } from '../storage/storage-engine';
 import { AuthStore } from './auth.store';
 import { PasswordStrengthService } from './password-strength.service';
 import { ExpiryReminderService } from './expiry-reminder.service';
+import { WatchVaultSelectionStore } from './watch-vault-selection.store';
 
 @Service()
 export class VaultStore {
@@ -13,6 +14,7 @@ export class VaultStore {
   private readonly auth = inject(AuthStore);
   private readonly passwordStrength = inject(PasswordStrengthService);
   private readonly expiryReminders = inject(ExpiryReminderService);
+  private readonly watchVaultSelections = inject(WatchVaultSelectionStore);
   readonly items = signal<readonly VaultItem[]>([]);
   readonly query = signal('');
   readonly typeFilter = signal<VaultItem['type'] | 'ALL'>('ALL');
@@ -76,6 +78,7 @@ export class VaultStore {
       ),
     );
     this.items.set(items);
+    await this.watchVaultSelections.reconcile(items);
     void this.expiryReminders.sync(items);
     if (!this.selectedId()) {
       this.selectedId.set(
@@ -108,6 +111,9 @@ export class VaultStore {
       ),
     );
     if (options.select !== false) this.selectedId.set(item.id);
+    if (item.deletedAt || item.archived || item.template) {
+      await this.watchVaultSelections.remove(item.id);
+    }
     await this.expiryReminders.scheduleForItem(item, false);
   }
 
@@ -116,6 +122,7 @@ export class VaultStore {
   }
   async deletePermanently(id: string): Promise<void> {
     await this.storage.deleteItem(id);
+    await this.watchVaultSelections.remove(id);
     await this.expiryReminders.cancelForItem(id);
     this.items.update((items) => items.filter((item) => item.id !== id));
     if (this.selectedId() === id) this.selectedId.set(null);

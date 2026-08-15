@@ -1,0 +1,164 @@
+name: Build Vault Nest Wear
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main-wear]
+    paths:
+      - 'wear/**'
+      - 'scripts/android/WatchVaultPlugin.java.template'
+      - 'scripts/prepare-wear-assets.mjs'
+      - 'src/environments/watch-vault.environment.ts'
+      - 'wear-config.json'
+      - 'android-version.json'
+      - 'wear-version.json'
+      - 'scripts/bump-wear-version.js'
+      - '.github/workflows/build-wear.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wear-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-wear:
+    name: Build signed Wear OS artifacts
+    runs-on: ubuntu-latest
+    env:
+      WEAR_MIN_SDK_VERSION: 30
+      WEAR_TARGET_SDK_VERSION: 36
+      WEAR_COMPILE_SDK_VERSION: 36
+      ANDROID_BUILD_TOOLS_VERSION: 36.0.0
+      VAULT_NEST_KEYSTORE_PATH: ${{ github.workspace }}/wear/release-keystore.jks
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+    steps:
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.16.0'
+
+      - name: 🔢 Bump Wear versionCode and commit
+        if: github.ref == 'refs/heads/main-wear'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          node scripts/bump-wear-version.js
+          WEAR_VERSION_CODE=$(node -p "require('./wear-version.json').versionCode")
+          WEAR_VERSION_NAME=$(node -p "require('./android-version.json').versionName + '-wear.' + require('./wear-version.json').wearRevision")
+          echo "⌚ Building Wear versionName=$WEAR_VERSION_NAME versionCode=$WEAR_VERSION_CODE"
+          git pull --rebase --autostash
+          git add wear-version.json
+          git diff --cached --quiet || git commit -m "chore: bump Wear version to $WEAR_VERSION_NAME ($WEAR_VERSION_CODE) [skip ci]"
+          git push
+
+      - name: 🏷️ Read Wear release version
+        run: |
+          WEAR_VERSION_CODE=$(node -p "require('./wear-version.json').versionCode")
+          WEAR_VERSION_NAME=$(node -p "require('./android-version.json').versionName + '-wear.' + require('./wear-version.json').wearRevision")
+          echo "WEAR_VERSION_CODE=$WEAR_VERSION_CODE" >> "$GITHUB_ENV"
+          echo "WEAR_VERSION_NAME=$WEAR_VERSION_NAME" >> "$GITHUB_ENV"
+          echo "✅ Wear release version: $WEAR_VERSION_NAME ($WEAR_VERSION_CODE)"
+
+      - name: ☕ Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 📥 Install Wear Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-${WEAR_COMPILE_SDK_VERSION}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" "platform-tools"
+
+      - name: 🐘 Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: 🔐 Validate and decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo '❌ Missing KEYSTORE_BASE64 secret'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo '❌ Missing KEYSTORE_PASSWORD secret'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo '❌ Missing KEY_ALIAS secret'; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo '❌ Missing KEY_PASSWORD secret'; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$VAULT_NEST_KEYSTORE_PATH"
+          test -s "$VAULT_NEST_KEYSTORE_PATH" || { echo '❌ Decoded keystore is empty'; exit 1; }
+          KEYSTORE_TYPE="$(keytool -list -keystore "$VAULT_NEST_KEYSTORE_PATH" -storepass:env KEYSTORE_PASSWORD 2>/dev/null | sed -n 's/^Keystore type: //p' | tr '[:lower:]' '[:upper:]')"
+          test -n "$KEYSTORE_TYPE" || { echo '❌ Unable to inspect the signing keystore'; exit 1; }
+          if [ "$KEYSTORE_TYPE" = "PKCS12" ]; then
+            echo 'PKCS12_KEY_PASSWORD_USES_STORE_PASSWORD=true' >> "$GITHUB_ENV"
+          fi
+          echo '✅ Wear release signing key restored for this job.'
+
+      - name: 🎨 Prepare existing Vault Nest icon
+        run: node scripts/prepare-wear-assets.mjs
+
+      - name: 🧪 Run Wear OS unit tests
+        run: gradle -p wear testDebugUnitTest --stacktrace
+
+      - name: 🛠️ Build debug APK, signed release APK, and signed release AAB
+        run: |
+          if [ "${PKCS12_KEY_PASSWORD_USES_STORE_PASSWORD:-false}" = "true" ]; then
+            export KEY_PASSWORD="$KEYSTORE_PASSWORD"
+          fi
+          gradle -p wear assembleDebug assembleRelease bundleRelease --stacktrace
+
+      - name: 📦 Normalize and verify Wear artifacts
+        run: |
+          mkdir -p releases/wear
+          rm -f releases/wear/*.apk releases/wear/*.aab
+          cp wear/app/build/outputs/apk/debug/app-debug.apk releases/wear/vault-nest-wear-debug.apk
+          cp wear/app/build/outputs/apk/release/app-release.apk releases/wear/vault-nest-wear-release.apk
+          cp wear/app/build/outputs/bundle/release/app-release.aab releases/wear/vault-nest-wear-release.aab
+          test -s releases/wear/vault-nest-wear-debug.apk || { echo '❌ Debug APK is missing'; exit 1; }
+          test -s releases/wear/vault-nest-wear-release.apk || { echo '❌ Release APK is missing'; exit 1; }
+          test -s releases/wear/vault-nest-wear-release.aab || { echo '❌ Release AAB is missing'; exit 1; }
+          BUILD_TOOLS_DIR="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}"
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose releases/wear/vault-nest-wear-release.apk
+          jarsigner -verify -strict -certs releases/wear/vault-nest-wear-release.aab
+          echo '⌚✅ Wear OS APK and AAB generation completed.'
+          ls -lh releases/wear
+
+      - name: 📌 Commit Wear release files to main-wear
+        if: github.ref == 'refs/heads/main-wear'
+        run: |
+          if [[ -n "$(git status --porcelain -- releases/ ':(exclude)releases/wear/**')" ]]; then
+            echo '❌ Wear workflow changed files owned by the Android workflow. Refusing to commit.'
+            git status --short -- releases/ ':(exclude)releases/wear/**'
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash
+          git add -A -- releases/wear/
+          if git diff --cached --quiet; then
+            echo 'ℹ️ Wear release files are unchanged; no release commit is needed.'
+          else
+            git commit -m "build: update Wear OS release files [skip ci]"
+            git push
+            echo '✅ Wear APK and AAB committed to main-wear/releases/wear.'
+          fi
+
+      - name: 📤 Upload Wear OS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-nest-wear-${{ env.WEAR_VERSION_NAME }}
+          path: releases/wear/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 🧹 Remove temporary signing key
+        if: always()
+        run: rm -f "$VAULT_NEST_KEYSTORE_PATH"

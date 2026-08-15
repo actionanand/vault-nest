@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.VaultNestWear" parent="android:style/Theme.DeviceDefault">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@color/wear_background</item>
+        <item name="android:navigationBarColor">@color/wear_background</item>
+        <item name="android:statusBarColor">@color/wear_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
