@@ -1,73 +1,377 @@
 <main class="generator-page">
-  <header>
+  <header class="page-heading">
     <p class="eyebrow">Security tool</p>
     <h1>Password generator</h1>
-    <p>Create a strong random password locally using cryptographically secure randomness.</p>
+    <p>Generate secure passwords locally. Nothing leaves your device.</p>
   </header>
-  <section class="result-card">
-    <p>Generated password</p>
-    <output>{{ password() }}</output>
-    <div class="result-meta">
-      <span><i></i>{{ strength() }}</span
-      ><span>~{{ entropy() }} bits estimated entropy</span>
+
+  <section class="result-card" aria-labelledby="generated-password-title">
+    <div class="result-heading">
+      <div>
+        <p id="generated-password-title">Generated password</p>
+        <span>{{ isMemorable() ? 'Memorable passphrase' : 'Random password' }}</span>
+      </div>
+      <app-icon [name]="isMemorable() ? 'field_text' : 'generator'" />
     </div>
+
+    @if (error()) {
+      <p class="generator-error" role="alert">{{ error() }}</p>
+    } @else {
+      <output class="generated-value" aria-live="polite">{{ password() }}</output>
+      @if (readablePassword()) {
+        <div class="readable-password" aria-live="polite">
+          <span>Plain English</span>
+          <p>{{ readablePassword() }}</p>
+        </div>
+      }
+    }
+
+    <div class="strength-summary">
+      <div class="strength-label">
+        <span>{{ strength() }}</span>
+        <span>~{{ entropy() }} bits</span>
+      </div>
+      <div class="strength-meter" role="img" [attr.aria-label]="strength() + ' password strength'">
+        @for (segment of [1, 2, 3, 4]; track segment) {
+          <i [class.active]="segment <= strengthLevel()"></i>
+        }
+      </div>
+    </div>
+
     <div class="result-actions">
       <button class="secondary-button" type="button" (click)="regenerate()">
-        <app-icon name="sparkle" />Regenerate</button
-      ><button class="primary-button" type="button" (click)="copy()">
+        <app-icon name="restore" />Regenerate
+      </button>
+      <button class="primary-button" type="button" [disabled]="!!error()" (click)="copy()">
         <app-icon name="copy" />{{ copied() ? 'Copied' : 'Copy password' }}
       </button>
     </div>
   </section>
-  <section class="options-card">
-    <div class="length">
-      <label for="length">Length</label><output>{{ options().length }}</output
-      ><input
-        id="length"
-        type="range"
-        min="8"
-        max="64"
-        [ngModel]="options().length"
-        (ngModelChange)="update('length', $event)"
-      />
+
+  <section class="options-card" aria-labelledby="generator-options-title">
+    <div class="options-heading">
+      <div>
+        <p class="eyebrow">Configuration</p>
+        <h2 id="generator-options-title">Password options</h2>
+      </div>
+      <app-icon name="settings" />
     </div>
+
+    <fieldset class="mode-selector">
+      <legend>Generation type</legend>
+      <div>
+        <button
+          type="button"
+          [class.active]="!isMemorable()"
+          [attr.aria-pressed]="!isMemorable()"
+          (click)="setMode('random')"
+        >
+          <app-icon name="generator" />
+          <strong>Random</strong>
+        </button>
+        <button
+          type="button"
+          [class.active]="isMemorable()"
+          [attr.aria-pressed]="isMemorable()"
+          (click)="setMode('memorable')"
+        >
+          <app-icon name="field_text" />
+          <strong>Memorable</strong>
+        </button>
+      </div>
+    </fieldset>
+
+    @if (isMemorable()) {
+      <div class="range-control">
+        <div>
+          <label for="memorable-length">Character length</label>
+          <output for="memorable-length">{{ options().memorableLength }}</output>
+        </div>
+        <input
+          id="memorable-length"
+          type="range"
+          min="12"
+          max="64"
+          step="1"
+          [ngModel]="options().memorableLength"
+          (ngModelChange)="update('memorableLength', $event)"
+        />
+        <small>The result always matches this length, including connector and digits.</small>
+      </div>
+    } @else {
+      <div class="range-control">
+        <div>
+          <label for="password-length">Password length</label>
+          <output for="password-length">{{ options().length }}</output>
+        </div>
+        <input
+          id="password-length"
+          type="range"
+          min="8"
+          max="64"
+          [ngModel]="options().length"
+          (ngModelChange)="update('length', $event)"
+        />
+        <small>20 or more characters is recommended for important accounts.</small>
+      </div>
+    }
+
     <div class="toggles">
-      <label
-        ><span><strong>Uppercase letters</strong><small>A–Z</small></span
-        ><input
-          type="checkbox"
-          [ngModel]="options().uppercase"
-          (ngModelChange)="update('uppercase', $event)" /></label
-      ><label
-        ><span><strong>Lowercase letters</strong><small>a–z</small></span
-        ><input
-          type="checkbox"
-          [ngModel]="options().lowercase"
-          (ngModelChange)="update('lowercase', $event)" /></label
-      ><label
-        ><span><strong>Numbers</strong><small>0–9</small></span
-        ><input
+      @if (!isMemorable()) {
+        <label>
+          <span><strong>Uppercase letters</strong><small>A–Z</small></span>
+          <input
+            type="checkbox"
+            [ngModel]="options().uppercase"
+            (ngModelChange)="update('uppercase', $event)"
+          />
+        </label>
+        <label>
+          <span><strong>Lowercase letters</strong><small>a–z</small></span>
+          <input
+            type="checkbox"
+            [ngModel]="options().lowercase"
+            (ngModelChange)="update('lowercase', $event)"
+          />
+        </label>
+      } @else {
+        <label>
+          <span
+            ><strong>Capitalize words</strong
+            ><small>Velvet-Harbor instead of velvet-harbor</small></span
+          >
+          <input
+            type="checkbox"
+            [ngModel]="options().uppercase"
+            (ngModelChange)="update('uppercase', $event)"
+          />
+        </label>
+      }
+
+      <label>
+        <span
+          ><strong>{{ isMemorable() ? 'Add two digits' : 'Numbers' }}</strong
+          ><small>{{ isMemorable() ? 'Adds a short numeric ending' : '0–9' }}</small></span
+        >
+        <input
           type="checkbox"
           [ngModel]="options().numbers"
-          (ngModelChange)="update('numbers', $event)" /></label
-      ><label
-        ><span><strong>Symbols</strong><small>! @ # $ …</small></span
-        ><input
-          type="checkbox"
-          [ngModel]="options().symbols"
-          (ngModelChange)="update('symbols', $event)" /></label
-      ><label
-        ><span
-          ><strong>Avoid ambiguous characters</strong><small>Remove I, l, 1, O and 0</small></span
-        ><input
+          (ngModelChange)="update('numbers', $event)"
+        />
+      </label>
+
+      @if (isMemorable()) {
+        <div class="connector-control">
+          <div>
+            <strong>Connector</strong>
+            <small>One punctuation character placed between words</small>
+          </div>
+          <button
+            #connectorTrigger
+            type="button"
+            class="connector-button"
+            aria-haspopup="dialog"
+            aria-describedby="memorable-connector-help"
+            (click)="openConnectorEditor()"
+          >
+            <code>{{ options().connector }}</code>
+            <app-icon name="chevron_down" />
+          </button>
+          <small id="memorable-connector-help">
+            Default: <code>-</code>. Tap the key to choose another connector.
+          </small>
+        </div>
+        <label>
+          <span><strong>Memorable substitutions</strong></span>
+          <input
+            type="checkbox"
+            [ngModel]="options().substituteCharacters"
+            (ngModelChange)="update('substituteCharacters', $event)"
+          />
+        </label>
+        <label>
+          <span
+            ><strong>English contractions</strong
+            ><small>Include natural patterns such as I'm, I'll, we're and can't</small></span
+          >
+          <input
+            type="checkbox"
+            [ngModel]="options().useContractions"
+            (ngModelChange)="update('useContractions', $event)"
+          />
+        </label>
+      } @else {
+        <div class="toggle-with-action">
+          <label>
+            <span
+              ><strong>Special characters</strong
+              ><small>Use only your approved punctuation characters</small></span
+            >
+            <input
+              type="checkbox"
+              [ngModel]="options().symbols"
+              (ngModelChange)="update('symbols', $event)"
+            />
+          </label>
+          @if (options().symbols) {
+            <button
+              #symbolsTrigger
+              type="button"
+              class="symbol-edit-button"
+              (click)="openSymbolsEditor()"
+            >
+              <app-icon name="edit" />Edit allowed characters
+            </button>
+          }
+        </div>
+      }
+
+      <label>
+        <span
+          ><strong>Avoid ambiguous characters</strong
+          ><small>Remove I, l, 1, O, 0 and o</small></span
+        >
+        <input
           type="checkbox"
           [ngModel]="options().avoidAmbiguous"
           (ngModelChange)="update('avoidAmbiguous', $event)"
-      /></label>
+        />
+      </label>
     </div>
   </section>
+
   <p class="analysis">
-    <app-icon name="shield" />This password appears {{ strength().toLowerCase() }} based on local
-    analysis. It is never sent anywhere.
+    <app-icon name="shield" />
+    <span>
+      {{
+        isMemorable()
+          ? 'English words are chosen independently with secure randomness.'
+          : 'Characters are chosen with secure randomness.'
+      }}
+      Generated values are never sent anywhere.
+    </span>
   </p>
+
+  @if (copied()) {
+    <p class="copy-status" role="status">Password copied. Clipboard clears in 5 minutes.</p>
+  }
+
+  @if (symbolsEditorOpen()) {
+    <div class="dialog-backdrop">
+      <button
+        type="button"
+        class="dialog-dismiss-layer"
+        aria-label="Close allowed special characters dialog"
+        (click)="closeSymbolsEditor()"
+      ></button>
+      <section
+        class="symbols-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="symbols-dialog-title"
+        (keydown.escape)="closeSymbolsEditor()"
+      >
+        <header>
+          <div>
+            <p class="eyebrow">Random password</p>
+            <h2 id="symbols-dialog-title">Allowed special characters</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="Close dialog"
+            (click)="closeSymbolsEditor()"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <p>Only the punctuation entered here may appear in a generated random password.</p>
+        <label for="allowed-symbols-dialog">Special characters</label>
+        <input
+          #symbolsInput
+          id="allowed-symbols-dialog"
+          type="text"
+          inputmode="text"
+          maxlength="32"
+          autocomplete="off"
+          spellcheck="false"
+          [ngModel]="symbolDraft()"
+          (ngModelChange)="symbolDraft.set($event)"
+          aria-describedby="allowed-symbols-dialog-help"
+        />
+        <small id="allowed-symbols-dialog-help" [class.input-error]="!symbolDraftValid()">
+          {{
+            symbolDraftValid()
+              ? 'Letters, numbers, spaces, emoji and duplicate characters are ignored.'
+              : 'Enter at least one ASCII punctuation character.'
+          }}
+        </small>
+        <footer>
+          <button type="button" class="quiet-button" (click)="restoreSymbols()">
+            Restore defaults
+          </button>
+          <button type="button" class="secondary-button" (click)="closeSymbolsEditor()">
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            [disabled]="!symbolDraftValid()"
+            (click)="saveSymbols()"
+          >
+            Apply
+          </button>
+        </footer>
+      </section>
+    </div>
+  }
+
+  @if (connectorEditorOpen()) {
+    <div class="dialog-backdrop">
+      <button
+        type="button"
+        class="dialog-dismiss-layer"
+        aria-label="Close connector chooser"
+        (click)="closeConnectorEditor()"
+      ></button>
+      <section
+        #connectorDialog
+        class="symbols-dialog connector-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connector-dialog-title"
+        tabindex="-1"
+        (keydown.escape)="closeConnectorEditor()"
+      >
+        <header>
+          <div>
+            <p class="eyebrow">Memorable password</p>
+            <h2 id="connector-dialog-title">Choose a connector</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="Close connector chooser"
+            (click)="closeConnectorEditor()"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <p>Choose the character placed between each English word.</p>
+        <div class="connector-keys" aria-label="Available connector symbols">
+          @for (connector of connectorChoices; track connector) {
+            <button
+              type="button"
+              [class.active]="connector === options().connector"
+              [attr.aria-pressed]="connector === options().connector"
+              [attr.aria-label]="'Use ' + connector + ' as connector'"
+              (click)="selectConnector(connector)"
+            >
+              {{ connector }}
+            </button>
+          }
+        </div>
+      </section>
+    </div>
+  }
 </main>

@@ -12,7 +12,8 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Login, note, identity, Wi-Fi, and custom-item editor presets.
 - Unlimited dynamic fields with duplicate, remove, move-up, and move-down actions.
 - Vault list, responsive details pane, reveal/copy, favourites, labels, expiry, notes, and safe-field search.
-- Secure random password generator with local entropy classification.
+- Secure random and memorable password generator with exact allowed-symbol controls and local
+  entropy classification.
 - Light, dark, and automatic themes; five-minute best-effort clipboard clearing with Android native delayed cleanup.
 - Persisted failed-password limits with Unlimited as the default and explicit destructive warnings.
 - Persisted unlimited-mode cooldown escalation and finite easy-login full-password/biometric recovery.
