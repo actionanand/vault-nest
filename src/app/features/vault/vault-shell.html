@@ -37,6 +37,9 @@
       <a routerLink="/vault/generator" routerLinkActive="active" (click)="closeDrawer()"
         ><app-icon name="sparkle" /><span>Password generator</span></a
       >
+      <a routerLink="/vault/watch" routerLinkActive="active" (click)="closeDrawer()"
+        ><app-icon name="watch" /><span>Watch Vault</span></a
+      >
       <p class="nav-label">Item types</p>
       <a routerLink="/vault/all" [queryParams]="{ type: 'LOGIN' }" (click)="closeDrawer()"
         ><app-icon name="key" /><span>Logins</span></a

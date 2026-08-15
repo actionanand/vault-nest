@@ -56,6 +56,7 @@ import {
   LucideLandmark,
   LucideList,
   LucideWifi,
+  LucideWatch,
   LucideX,
   type LucideIconInput,
 } from '@lucide/angular';
@@ -116,6 +117,7 @@ const ICONS: Readonly<Record<string, LucideIconInput>> = {
   bank: LucideLandmark,
   identity: LucideUserRound,
   wifi: LucideWifi,
+  watch: LucideWatch,
   close: LucideX,
 };
 

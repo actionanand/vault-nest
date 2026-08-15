@@ -5,6 +5,14 @@
         <app-icon name="notify_copy" /><span>Send to notifications</span>
       </button>
     }
+    @if (!item().deletedAt && !item().archived) {
+      <button type="button" class="action-button" (click)="toggleWatchVault()">
+        <app-icon name="watch" />
+        <span>{{
+          watchVault.isSelected(item().id) ? 'Remove from Watch Vault' : 'Add to Watch Vault'
+        }}</span>
+      </button>
+    }
     <button type="button" class="action-button" (click)="openLabels()">
       <app-icon name="labels" /><span>Set labels</span>
     </button>

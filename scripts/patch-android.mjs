@@ -4,9 +4,16 @@ import { dirname, resolve } from 'node:path';
 const capacitorConfigPath = resolve('android/app/src/main/assets/capacitor.config.json');
 const capacitorConfig = JSON.parse(await readFile(capacitorConfigPath, 'utf8'));
 const appId = capacitorConfig.appId;
+const watchEnvironmentPath = resolve('src/environments/watch-vault.environment.ts');
+const environmentSource = await readFile(watchEnvironmentPath, 'utf8');
+const watchLimitMatch = environmentSource.match(/WATCH_VAULT_MAX_ENTRIES\s*=\s*(\d+)/);
+const watchVaultMaxEntries = Number(watchLimitMatch?.[1]);
 
 if (typeof appId !== 'string' || !appId.trim()) {
   throw new Error(`Android appId is missing from ${capacitorConfigPath}.`);
+}
+if (!Number.isInteger(watchVaultMaxEntries) || watchVaultMaxEntries < 1) {
+  throw new Error(`WATCH_VAULT_MAX_ENTRIES must be a positive integer in ${watchEnvironmentPath}.`);
 }
 
 async function fileExists(path) {
@@ -28,6 +35,11 @@ const credentialShortcutStorePath = resolve(
   'android/app/src/main/java',
   ...appId.split('.'),
   'CredentialShortcutStore.java',
+);
+const watchVaultPluginPath = resolve(
+  'android/app/src/main/java',
+  ...appId.split('.'),
+  'WatchVaultPlugin.java',
 );
 const legacyCredentialReceiverPath = resolve(
   'android/app/src/main/java',
@@ -108,6 +120,13 @@ if (!gradle.includes('androidx.biometric:biometric')) {
   gradle = gradle.replace(
     /dependencies\s*\{/,
     "dependencies {\n    implementation 'androidx.biometric:biometric:1.1.0'",
+  );
+  await writeFile(gradlePath, gradle, 'utf8');
+}
+if (!gradle.includes('com.google.android.gms:play-services-wearable')) {
+  gradle = gradle.replace(
+    /dependencies\s*\{/,
+    "dependencies {\n    implementation 'com.google.android.gms:play-services-wearable:19.0.0'",
   );
   await writeFile(gradlePath, gradle, 'utf8');
 }
@@ -216,6 +235,7 @@ public class MainActivity extends BridgeActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(WatchVaultPlugin.class);
     super.onCreate(savedInstanceState);
     showLaunchOverlay();
     getBridge().getWebView().addJavascriptInterface(new VaultNestNativeBridge(), "VaultNestNative");
@@ -1022,6 +1042,18 @@ public class MainActivity extends BridgeActivity {
 
 await writeFile(activityPath, source, 'utf8');
 
+const watchVaultPluginTemplate = await readFile(
+  resolve('scripts/android/WatchVaultPlugin.java.template'),
+  'utf8',
+);
+await writeFile(
+  watchVaultPluginPath,
+  watchVaultPluginTemplate
+    .replaceAll('__PACKAGE__', appId)
+    .replaceAll('__MAX_ENTRIES__', String(watchVaultMaxEntries)),
+  'utf8',
+);
+
 await writeFile(
   credentialCopyActivityPath,
   `package ${appId};
@@ -1356,5 +1388,5 @@ await writeFile(
 );
 
 console.log(
-  'Applied Vault Nest Android backup, biometric, splash, screenshot, system-bar, and notification-icon patches.',
+  'Applied Vault Nest Android backup, biometric, splash, screenshot, system-bar, notification, and Watch Vault patches.',
 );

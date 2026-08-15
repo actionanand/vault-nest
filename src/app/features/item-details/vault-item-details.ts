@@ -10,6 +10,7 @@ import { SecretField } from '../../shared/components/secret-field';
 import { ClipboardService } from '../../core/services/clipboard.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
+import { WatchVaultService } from '../../core/services/watch-vault.service';
 
 @Component({
   selector: 'app-vault-item-details',
@@ -35,6 +36,7 @@ export class VaultItemDetails {
   private readonly clipboard = inject(ClipboardService);
   private readonly websiteIcons = inject(WebsiteIconService);
   readonly notifications = inject(CredentialNotificationService);
+  readonly watchVault = inject(WatchVaultService);
   readonly item = input.required<VaultItem>();
   readonly menuOpen = signal(false);
   readonly labelDialogOpen = signal(false);
@@ -103,6 +105,22 @@ export class VaultItemDetails {
 
   async sendNotifications(): Promise<void> {
     await this.notifications.sendCopyShortcuts(this.item());
+  }
+
+  async toggleWatchVault(): Promise<void> {
+    try {
+      if (this.watchVault.isSelected(this.item().id)) {
+        await this.watchVault.remove(this.item().id);
+        this.showMessage('Removed from Watch Vault');
+      } else {
+        await this.watchVault.add(this.item());
+        this.showMessage('Added to Watch Vault. Open Watch Vault to sync.');
+      }
+    } catch (error: unknown) {
+      this.showMessage(
+        error instanceof Error ? error.message : 'Watch Vault could not be updated.',
+      );
+    }
   }
 
   async duplicate(): Promise<void> {

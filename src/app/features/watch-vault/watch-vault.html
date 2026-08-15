@@ -1,0 +1,222 @@
+<main class="watch-page">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">Wear OS companion</p>
+      <h1>Watch Vault</h1>
+      <p>Keep a small read-only emergency vault available on your paired watch.</p>
+    </div>
+    <span class="watch-mark"><app-icon name="watch" /></span>
+  </header>
+
+  <section class="summary-card" aria-labelledby="watch-vault-count">
+    <div>
+      <span id="watch-vault-count">Selected passwords</span>
+      <strong>
+        {{ watchVault.selections.entryIds().length }} /
+        {{ watchVault.selections.maxEntries }} passwords
+      </strong>
+    </div>
+    @if (watchVault.syncRequired()) {
+      <span class="sync-required">Sync required</span>
+    } @else if (watchVault.selections.lastSyncedAt()) {
+      <span class="synced">Up to date</span>
+    }
+  </section>
+
+  <section class="selected-card" aria-labelledby="selected-watch-passwords">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Offline on watch</p>
+        <h2 id="selected-watch-passwords">Selected entries</h2>
+      </div>
+      <button class="secondary-button compact" type="button" (click)="openSelector()">
+        <app-icon name="plus" />Add password
+      </button>
+    </div>
+
+    @if (watchVault.selectedItems().length) {
+      <div class="entry-list">
+        @for (item of watchVault.selectedItems(); track item.id) {
+          <article>
+            <span class="entry-icon"><app-icon name="key" /></span>
+            <div>
+              <strong>{{ item.title }}</strong>
+              <small>Updated {{ item.updatedAt | date: 'mediumDate' }}</small>
+            </div>
+            <button
+              class="icon-button"
+              type="button"
+              [attr.aria-label]="'Remove ' + item.title + ' from Watch Vault'"
+              (click)="remove(item)"
+            >
+              <app-icon name="close" />
+            </button>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <app-icon name="watch" />
+        <strong>No watch passwords selected</strong>
+        <p>
+          Add an item containing a password. Only its title, primary username, and primary password
+          are synced.
+        </p>
+      </div>
+    }
+  </section>
+
+  <section class="connection-card" aria-labelledby="watch-connection-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Connection</p>
+        <h2 id="watch-connection-title">Paired watch</h2>
+      </div>
+      <button
+        class="icon-button"
+        type="button"
+        aria-label="Refresh watch status"
+        (click)="watchVault.refreshStatus()"
+      >
+        <app-icon name="restore" />
+      </button>
+    </div>
+    <dl>
+      <div>
+        <dt>Status</dt>
+        <dd>{{ watchVault.status().connected ? 'Connected' : 'Not connected' }}</dd>
+      </div>
+      <div>
+        <dt>Compatible nodes</dt>
+        <dd>{{ watchVault.status().nodeCount }}</dd>
+      </div>
+      <div>
+        <dt>Trusted nodes</dt>
+        <dd>{{ watchVault.status().pairedNodeCount }}</dd>
+      </div>
+      <div>
+        <dt>Last synced</dt>
+        <dd>
+          {{
+            watchVault.selections.lastSyncedAt()
+              ? (watchVault.selections.lastSyncedAt() | date: 'medium')
+              : 'Never'
+          }}
+        </dd>
+      </div>
+    </dl>
+    <div class="connection-actions">
+      <button
+        class="primary-button"
+        type="button"
+        [disabled]="watchVault.busy() || !watchVault.selectedItems().length"
+        (click)="watchVault.sync()"
+      >
+        <app-icon name="watch" />{{ watchVault.busy() ? 'Working…' : 'Sync to Watch' }}
+      </button>
+      <button
+        class="secondary-button"
+        type="button"
+        [disabled]="watchVault.busy()"
+        (click)="clearOpen.set(true)"
+      >
+        Clear Watch Vault
+      </button>
+      <button
+        class="quiet-button"
+        type="button"
+        [disabled]="watchVault.busy()"
+        (click)="resetOpen.set(true)"
+      >
+        Reset phone-side trust
+      </button>
+    </div>
+    @if (!watchVault.status().available) {
+      <p class="platform-note">
+        Watch synchronization is available only in the Android application.
+      </p>
+    }
+  </section>
+
+  @if (localMessage() || watchVault.message()) {
+    <p class="toast" role="status">{{ localMessage() || watchVault.message() }}</p>
+  }
+
+  @if (selectorOpen()) {
+    <div class="dialog-backdrop" role="presentation">
+      <button
+        class="dismiss-layer"
+        type="button"
+        aria-label="Close password selector"
+        (click)="selectorOpen.set(false)"
+      ></button>
+      <section
+        class="selector-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="watch-selector-title"
+      >
+        <header>
+          <div>
+            <p class="eyebrow">Watch Vault</p>
+            <h2 id="watch-selector-title">Add a password</h2>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            aria-label="Close password selector"
+            (click)="selectorOpen.set(false)"
+          >
+            <app-icon name="close" />
+          </button>
+        </header>
+        <label class="search-field">
+          <app-icon name="search" /><span class="sr-only">Search passwords</span>
+          <input
+            type="search"
+            placeholder="Search password entries"
+            [ngModel]="query()"
+            (ngModelChange)="query.set($event)"
+          />
+        </label>
+        <div class="candidate-list">
+          @for (item of filteredItems(); track item.id) {
+            <button type="button" (click)="add(item)">
+              <app-icon name="key" /><span
+                ><strong>{{ item.title }}</strong
+                ><small>Add to Watch Vault</small></span
+              ><app-icon name="plus" />
+            </button>
+          } @empty {
+            <p>No additional password entries match this search.</p>
+          }
+        </div>
+      </section>
+    </div>
+  }
+
+  <app-confirmation-dialog
+    [open]="clearOpen()"
+    dialogId="clear-watch-vault"
+    title="Clear Watch Vault?"
+    message="All synchronized password records will be deleted from the connected watch and all phone selections will be removed. Your main Vault Nest items remain unchanged."
+    acknowledgementLabel="I understand that the watch copy and Watch Vault selections will be removed."
+    confirmLabel="Clear Watch Vault"
+    busyLabel="Clearing…"
+    [busy]="watchVault.busy()"
+    iconName="trash"
+    (cancelled)="clearOpen.set(false)"
+    (confirmed)="confirmClear()"
+  />
+  <app-confirmation-dialog
+    [open]="resetOpen()"
+    dialogId="reset-watch-trust"
+    title="Reset watch trust?"
+    message="The phone-side pairing keys and trusted watch records will be removed. Reset the Watch Vault locally too before pairing again."
+    acknowledgementLabel="I understand that a fresh secure pairing will be required."
+    confirmLabel="Reset trust"
+    iconName="watch"
+    (cancelled)="resetOpen.set(false)"
+    (confirmed)="confirmReset()"
+  />
+</main>

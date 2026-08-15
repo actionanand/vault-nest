@@ -59,6 +59,11 @@ export const routes: Routes = [
           import('./features/generator/generator').then((module) => module.Generator),
       },
       {
+        path: 'watch',
+        loadComponent: () =>
+          import('./features/watch-vault/watch-vault').then((module) => module.WatchVault),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/settings').then((module) => module.Settings),

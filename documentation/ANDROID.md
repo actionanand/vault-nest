@@ -100,7 +100,7 @@ Copy the single-line content of `keystore.b64.txt` into `KEYSTORE_BASE64`. Store
 3. CI increments `android-version.json`, commits it with `[skip ci]`, and pushes it using the workflow token.
 4. Angular builds `dist/vault-nest/browser`.
 5. Capacitor generates and syncs the Android project using `com.actionanand.vaultnest.app`.
-6. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 35.
+6. CI applies the updated `versionCode` and `versionName` from `android-version.json`, minimum SDK 24, and target SDK 36.
 7. ImageMagick generates padded launcher, round, foreground, splash, and Play Store icons from `public/vault-nest.png`.
 8. `scripts/patch-android.mjs` reads the generated Capacitor app ID and applies native backup/restore, biometric, intrusion-evidence, launch-theme, system-bar, encrypted notification-copy, and notification-icon patches to the matching Java package.
 9. Gradle receives those version values as project properties and creates unsigned release APK/AAB inputs.
@@ -206,7 +206,7 @@ git push origin main-android
 
 ```yaml
 MIN_SDK_VERSION: 24
-TARGET_SDK_VERSION: 35
+TARGET_SDK_VERSION: 36
 ```
 
 Raise the target SDK when Google Play requirements change and verify Capacitor compatibility before merging.

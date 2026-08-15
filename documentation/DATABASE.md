@@ -10,6 +10,12 @@
 
 SQLite database encryption is not treated as the security boundary. Sensitive fields are encrypted at the application layer before insertion. This preserves the same security model across Android and browser implementations.
 
+## Watch Vault selection metadata
+
+Watch Vault does not add a table or duplicate credential secrets on the phone. The existing preferences metadata record stores only selected item IDs, the last successful send time, and the item update versions recorded at that send. Current username and password values are resolved from the unlocked vault only when the user explicitly synchronizes.
+
+This reuses the existing `metadata`/`vault_metadata` record, so IndexedDB and SQLite remain at schema version 1 and existing databases and backups remain compatible. Deleting or archiving a selected credential removes its selection; the next explicit watch sync replaces the watch-side collection.
+
 ## Migration rules
 
 1. Never edit a released migration.

@@ -15,6 +15,8 @@
     "android:version:patch": "node scripts/bump-android-version.js --patch",
     "android:version:minor": "node scripts/bump-android-version.js --minor",
     "android:version:major": "node scripts/bump-android-version.js --major",
+    "wear:prepare": "node scripts/prepare-wear-assets.mjs",
+    "wear:version": "node scripts/bump-wear-version.js",
     "generate-keystore": "node scripts/generate-keystore.mjs",
     "migrate:safeincloud": "node scripts/migrate-safeincloud.mjs",
     "migrate:to-safeincloud": "node scripts/export-safeincloud.mjs",

@@ -99,7 +99,8 @@ jobs:
       - name: Clear previous Android release artifacts
         run: |
           mkdir -p releases
-          rm -f releases/*.apk releases/*.aab releases/*.apk.idsig
+          rm -f releases/${RELEASE_BASENAME}-*.apk releases/${RELEASE_BASENAME}-*.aab releases/${RELEASE_BASENAME}-*.apk.idsig
+          echo "✅ Cleared only Android artifacts; releases/wear was not touched."
       - name: Build unsigned release artifacts
         working-directory: android
         run: ./gradlew assembleRelease bundleRelease -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME"
@@ -233,10 +234,15 @@ jobs:
         run: |
           test -s "releases/${RELEASE_FILE_BASENAME}.apk" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.apk"
           test -s "releases/${RELEASE_FILE_BASENAME}.aab" || test -s "releases/${RELEASE_FILE_BASENAME}-unsigned.aab"
+          if [[ -d releases/wear ]] && [[ -n "$(git status --porcelain -- releases/wear/)" ]]; then
+            echo "❌ Android workflow changed files owned by the Wear workflow. Refusing to commit."
+            git status --short -- releases/wear/
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase --autostash
-          git add releases/
+          git add -A -- releases/ ':(exclude)releases/wear/**'
           if git diff --cached --quiet; then
             echo "ℹ️ Release files are unchanged; no release commit is needed."
           else

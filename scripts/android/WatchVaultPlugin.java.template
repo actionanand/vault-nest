@@ -1,0 +1,343 @@
+package __PACKAGE__;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.wearable.CapabilityClient;
+import com.google.android.gms.wearable.MessageClient;
+import com.google.android.gms.wearable.MessageEvent;
+import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.Wearable;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+@CapacitorPlugin(name = "WatchVault")
+public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMessageReceivedListener {
+  private static final int PROTOCOL_VERSION = 1;
+  private static final int MAX_ENTRIES = __MAX_ENTRIES__;
+  private static final String PATH_PAIR_REQUEST = "/vaultnest/watch/pair/request";
+  private static final String PATH_PAIR_KEY = "/vaultnest/watch/pair/public-key";
+  private static final String PATH_SYNC = "/vaultnest/watch/sync";
+  private static final String PATH_CLEAR = "/vaultnest/watch/clear";
+  private static final String PATH_ACK = "/vaultnest/watch/ack";
+  private static final String CAPABILITY_WATCH_VAULT = "vault_nest_watch_vault";
+  private static final String KEYSTORE = "AndroidKeyStore";
+  private static final String PHONE_WRAP_KEY_ALIAS = "vault_nest_watch_phone_wrap_v1";
+  private static final String PREFERENCES = "vault_nest_watch_trust_v1";
+  private static final String PEER_PREFIX = "peer_";
+  private static final SecureRandom RANDOM = new SecureRandom();
+
+  @Override
+  protected void load() {
+    try {
+      Wearable.getMessageClient(getContext()).addListener(this);
+    } catch (Exception ignored) {
+      // The phone app remains usable when Google Play Services Wearable APIs are unavailable.
+    }
+  }
+
+  @Override
+  protected void handleOnDestroy() {
+    try {
+      Wearable.getMessageClient(getContext()).removeListener(this);
+    } catch (Exception ignored) {
+      // Nothing was registered when Wearable APIs were unavailable.
+    }
+    super.handleOnDestroy();
+  }
+
+  @PluginMethod
+  public void getStatus(PluginCall call) {
+    Wearable.getCapabilityClient(getContext())
+      .getCapability(CAPABILITY_WATCH_VAULT, CapabilityClient.FILTER_REACHABLE)
+      .addOnSuccessListener(capability -> {
+        List<Node> nodes = new ArrayList<>(capability.getNodes());
+        int paired = 0;
+        for (Node node : nodes) if (peerKey(node.getId()) != null) paired++;
+        JSObject result = new JSObject();
+        result.put("available", true);
+        result.put("connected", !nodes.isEmpty());
+        result.put("nodeCount", nodes.size());
+        result.put("pairedNodeCount", paired);
+        String acknowledgedAt = preferences().getString("last_ack_at", null);
+        if (acknowledgedAt != null) result.put("lastAcknowledgedAt", acknowledgedAt);
+        call.resolve(result);
+      })
+      .addOnFailureListener(error -> call.reject("Unable to read connected Wear OS devices."));
+  }
+
+  @PluginMethod
+  public void sync(PluginCall call) {
+    JSArray entries = call.getArray("entries", new JSArray());
+    if (entries.length() > MAX_ENTRIES) {
+      call.reject("Maximum " + MAX_ENTRIES + " Watch Vault passwords.");
+      return;
+    }
+    Wearable.getCapabilityClient(getContext())
+      .getCapability(CAPABILITY_WATCH_VAULT, CapabilityClient.FILTER_REACHABLE)
+      .addOnSuccessListener(capability -> sendSync(call, new ArrayList<>(capability.getNodes()), entries))
+      .addOnFailureListener(error -> call.reject("Unable to find a connected Wear OS device."));
+  }
+
+  @PluginMethod
+  public void clear(PluginCall call) {
+    Wearable.getCapabilityClient(getContext())
+      .getCapability(CAPABILITY_WATCH_VAULT, CapabilityClient.FILTER_REACHABLE)
+      .addOnSuccessListener(capability -> {
+        List<Node> nodes = new ArrayList<>(capability.getNodes());
+        JSONObject payload = new JSONObject();
+        try {
+          payload.put("version", PROTOCOL_VERSION);
+          payload.put("timestamp", System.currentTimeMillis());
+          sendEncryptedOperation(call, nodes, PATH_CLEAR, payload);
+        } catch (Exception error) {
+          call.reject("Watch Vault clear request could not be prepared.");
+        }
+      })
+      .addOnFailureListener(error -> call.reject("Unable to find a connected Wear OS device."));
+  }
+
+  @PluginMethod
+  public void reset(PluginCall call) {
+    try {
+      KeyStore keyStore = KeyStore.getInstance(KEYSTORE);
+      keyStore.load(null);
+      if (keyStore.containsAlias(PHONE_WRAP_KEY_ALIAS)) keyStore.deleteEntry(PHONE_WRAP_KEY_ALIAS);
+      preferences().edit().clear().apply();
+      JSObject result = new JSObject();
+      result.put("success", true);
+      call.resolve(result);
+    } catch (Exception error) {
+      call.reject("Watch trust could not be reset.");
+    }
+  }
+
+  private void sendSync(PluginCall call, List<Node> nodes, JSArray entries) {
+    if (nodes.isEmpty()) {
+      call.reject("No Wear OS device is connected.");
+      return;
+    }
+    try {
+      JSONObject payload = new JSONObject();
+      payload.put("version", PROTOCOL_VERSION);
+      payload.put("timestamp", System.currentTimeMillis());
+      payload.put("entries", new JSONArray(entries.toString()));
+      sendEncryptedOperation(call, nodes, PATH_SYNC, payload);
+    } catch (Exception error) {
+      call.reject("Watch Vault payload could not be prepared.");
+    }
+  }
+
+  private void sendEncryptedOperation(PluginCall call, List<Node> nodes, String path, JSONObject payload) {
+    if (nodes.isEmpty()) {
+      call.reject("No Wear OS device is connected.");
+      return;
+    }
+    try {
+      KeyPair phoneKeys = phoneKeyPair();
+      List<com.google.android.gms.tasks.Task<Integer>> sends = new ArrayList<>();
+      int pairedNodes = 0;
+      for (Node node : nodes) {
+        PublicKey peer = peerKey(node.getId());
+        if (peer == null) {
+          sendPairRequest(node, phoneKeys.getPublic());
+          continue;
+        }
+        byte[] encrypted = encrypt(path, payload.toString().getBytes(StandardCharsets.UTF_8), phoneKeys, peer);
+        sends.add(Wearable.getMessageClient(getContext()).sendMessage(node.getId(), path, encrypted));
+        pairedNodes++;
+      }
+      if (pairedNodes == 0) {
+        call.reject("Secure pairing started. Keep Vault Nest open on the watch, then retry sync.");
+        return;
+      }
+      final int sentNodes = pairedNodes;
+      com.google.android.gms.tasks.Tasks.whenAllComplete(sends).addOnSuccessListener(completed -> {
+        long failures = completed.stream().filter(task -> !task.isSuccessful()).count();
+        if (failures > 0) {
+          call.reject("Watch Vault could not be sent to every connected watch.");
+          return;
+        }
+        JSObject result = new JSObject();
+        result.put("success", true);
+        result.put("count", payload.optJSONArray("entries") == null ? 0 : payload.optJSONArray("entries").length());
+        result.put("nodeCount", sentNodes);
+        call.resolve(result);
+      });
+    } catch (Exception error) {
+      call.reject("Watch Vault could not be encrypted or sent.");
+    }
+  }
+
+  private void sendPairRequest(Node node, PublicKey phonePublicKey) throws Exception {
+    JSONObject request = new JSONObject();
+    request.put("version", PROTOCOL_VERSION);
+    request.put("publicKey", Base64.encodeToString(phonePublicKey.getEncoded(), Base64.NO_WRAP));
+    Wearable.getMessageClient(getContext()).sendMessage(
+      node.getId(), PATH_PAIR_REQUEST, request.toString().getBytes(StandardCharsets.UTF_8)
+    );
+  }
+
+  @Override
+  public void onMessageReceived(MessageEvent event) {
+    try {
+      if (PATH_PAIR_KEY.equals(event.getPath())) {
+        JSONObject response = new JSONObject(new String(event.getData(), StandardCharsets.UTF_8));
+        if (response.optInt("version", -1) != PROTOCOL_VERSION) return;
+        byte[] encoded = Base64.decode(response.getString("publicKey"), Base64.NO_WRAP);
+        PublicKey key = KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(encoded));
+        preferences().edit().putString(PEER_PREFIX + event.getSourceNodeId(),
+          Base64.encodeToString(key.getEncoded(), Base64.NO_WRAP)).apply();
+      } else if (PATH_ACK.equals(event.getPath())) {
+        JSONObject ack = new JSONObject(new String(event.getData(), StandardCharsets.UTF_8));
+        if (ack.optInt("version", -1) != PROTOCOL_VERSION) return;
+        preferences().edit().putString("last_ack_at", java.time.Instant.now().toString()).apply();
+      }
+    } catch (Exception ignored) {
+      // Invalid or unsupported messages are deliberately ignored without logging payload data.
+    }
+  }
+
+  private byte[] encrypt(String path, byte[] plaintext, KeyPair ownKeys, PublicKey peer) throws Exception {
+    KeyAgreement agreement = KeyAgreement.getInstance("ECDH");
+    agreement.init(ownKeys.getPrivate());
+    agreement.doPhase(peer, true);
+    byte[] key = deriveKey(agreement.generateSecret(), ownKeys.getPublic().getEncoded(), peer.getEncoded());
+    byte[] iv = new byte[12];
+    RANDOM.nextBytes(iv);
+    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, iv));
+    cipher.updateAAD((path + ":" + PROTOCOL_VERSION).getBytes(StandardCharsets.UTF_8));
+    byte[] ciphertext = cipher.doFinal(plaintext);
+    JSONObject envelope = new JSONObject();
+    envelope.put("version", PROTOCOL_VERSION);
+    envelope.put("iv", Base64.encodeToString(iv, Base64.NO_WRAP));
+    envelope.put("ciphertext", Base64.encodeToString(ciphertext, Base64.NO_WRAP));
+    return envelope.toString().getBytes(StandardCharsets.UTF_8);
+  }
+
+  private byte[] deriveKey(byte[] secret, byte[] first, byte[] second) throws Exception {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+    digest.update("vault-nest-watch-transport-v1".getBytes(StandardCharsets.UTF_8));
+    digest.update(secret);
+    if (compare(first, second) <= 0) { digest.update(first); digest.update(second); }
+    else { digest.update(second); digest.update(first); }
+    return digest.digest();
+  }
+
+  private int compare(byte[] first, byte[] second) {
+    for (int index = 0; index < Math.min(first.length, second.length); index++) {
+      int comparison = Integer.compare(first[index] & 0xff, second[index] & 0xff);
+      if (comparison != 0) return comparison;
+    }
+    return Integer.compare(first.length, second.length);
+  }
+
+  private KeyPair phoneKeyPair() throws Exception {
+    String publicValue = preferences().getString("phone_public", null);
+    String privateValue = preferences().getString("phone_private", null);
+    KeyFactory factory = KeyFactory.getInstance("EC");
+    if (publicValue != null && privateValue != null) {
+      PublicKey publicKey = factory.generatePublic(
+        new X509EncodedKeySpec(Base64.decode(publicValue, Base64.NO_WRAP))
+      );
+      byte[] privateBytes = decryptPrivate(Base64.decode(privateValue, Base64.NO_WRAP));
+      PrivateKey privateKey = factory.generatePrivate(new PKCS8EncodedKeySpec(privateBytes));
+      return new KeyPair(publicKey, privateKey);
+    }
+    KeyPairGenerator generator = KeyPairGenerator.getInstance("EC");
+    generator.initialize(new ECGenParameterSpec("secp256r1"), RANDOM);
+    KeyPair pair = generator.generateKeyPair();
+    preferences().edit()
+      .putString("phone_public", Base64.encodeToString(pair.getPublic().getEncoded(), Base64.NO_WRAP))
+      .putString("phone_private", Base64.encodeToString(encryptPrivate(pair.getPrivate().getEncoded()), Base64.NO_WRAP))
+      .apply();
+    return pair;
+  }
+
+  private byte[] encryptPrivate(byte[] privateKey) throws Exception {
+    byte[] iv = new byte[12];
+    RANDOM.nextBytes(iv);
+    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    cipher.init(Cipher.ENCRYPT_MODE, wrappingKey(), new GCMParameterSpec(128, iv));
+    cipher.updateAAD("vault-nest-phone-pair-private-v1".getBytes(StandardCharsets.UTF_8));
+    JSONObject envelope = new JSONObject();
+    envelope.put("iv", Base64.encodeToString(iv, Base64.NO_WRAP));
+    envelope.put("ciphertext", Base64.encodeToString(cipher.doFinal(privateKey), Base64.NO_WRAP));
+    return envelope.toString().getBytes(StandardCharsets.UTF_8);
+  }
+
+  private byte[] decryptPrivate(byte[] encrypted) throws Exception {
+    JSONObject envelope = new JSONObject(new String(encrypted, StandardCharsets.UTF_8));
+    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    cipher.init(Cipher.DECRYPT_MODE, wrappingKey(), new GCMParameterSpec(
+      128, Base64.decode(envelope.getString("iv"), Base64.NO_WRAP)
+    ));
+    cipher.updateAAD("vault-nest-phone-pair-private-v1".getBytes(StandardCharsets.UTF_8));
+    return cipher.doFinal(Base64.decode(envelope.getString("ciphertext"), Base64.NO_WRAP));
+  }
+
+  private SecretKey wrappingKey() throws Exception {
+    KeyStore keyStore = KeyStore.getInstance(KEYSTORE);
+    keyStore.load(null);
+    java.security.Key existing = keyStore.getKey(PHONE_WRAP_KEY_ALIAS, null);
+    if (existing instanceof SecretKey) return (SecretKey) existing;
+    KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE);
+    generator.init(new KeyGenParameterSpec.Builder(
+      PHONE_WRAP_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT
+    ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+      .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+      .setRandomizedEncryptionRequired(true)
+      .build());
+    return generator.generateKey();
+  }
+
+  private PublicKey peerKey(String nodeId) {
+    try {
+      String value = preferences().getString(PEER_PREFIX + nodeId, null);
+      if (value == null) return null;
+      return KeyFactory.getInstance("EC").generatePublic(
+        new X509EncodedKeySpec(Base64.decode(value, Base64.NO_WRAP))
+      );
+    } catch (Exception error) {
+      preferences().edit().remove(PEER_PREFIX + nodeId).apply();
+      return null;
+    }
+  }
+
+  private SharedPreferences preferences() {
+    return getContext().getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
+  }
+}
