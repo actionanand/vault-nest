@@ -18,10 +18,25 @@ letters, numbers, whitespace, emoji, and duplicate characters are ignored.
 ### Memorable
 
 Memorable mode creates a securely selected stream of English words. It does not use quotations or
-grammatical sentences that may be easier to predict. Users choose an exact length from 12 to 64
-characters, capitalization, an optional two-digit ending, and a one-character punctuation connector.
+grammatical sentences that may be easier to predict. Users choose an exact length from 6 to 64
+characters, capitalization, optional numeric groups, and a one-character punctuation connector.
 The connector defaults to `-`, is included in the requested length, and is selected from the
 connector key dialog.
+
+When numbers are enabled, memorable mode selects one to eight digits according to the requested
+length. Longer results use four to eight digits distributed across word segments. At least one
+numeric run appears before a connector and another appears at the end, producing patterns such as `Force614-Each7`,
+`ForCE614-EaCH7`, or `Force23-Each700`. The result still matches the requested character length.
+Capitalization always supplies at least one uppercase letter and can produce either natural title
+case or a small amount of mixed case.
+
+The generator selects complete word combinations that fit the requested length. It never cuts the
+end from a word to force the result to fit; numeric groups occupy the remaining character positions.
+
+For compact 6–8 character results, the generator uses one short English word and a one- or two-digit
+ending because multiple complete words and numeric groups cannot fit reliably. From 9 characters,
+the generator can place numeric groups on both sides of a connector. Longer memorable passwords,
+preferably 12 characters or more, remain strongly recommended.
 
 Optional memorable substitutions introduce randomly selected leetspeak-style variants. The curated
 mapping includes alternatives such as `a → @/^`, `b → 8/13/l3`, `c → (`, `d → 1)/l)`, `e → 3`, and

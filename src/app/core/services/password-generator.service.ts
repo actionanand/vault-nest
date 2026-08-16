@@ -57,6 +57,7 @@ const ADJECTIVES = [
   'mighty',
   'misty',
   'modern',
+  'new',
   'nimble',
   'noble',
   'ocean',
@@ -66,6 +67,7 @@ const ADJECTIVES = [
   'quick',
   'quiet',
   'rapid',
+  'red',
   'royal',
   'ruby',
   'safe',
@@ -76,6 +78,7 @@ const ADJECTIVES = [
   'sunny',
   'swift',
   'tidy',
+  'dry',
   'tiny',
   'tranquil',
   'true',
@@ -112,12 +115,14 @@ const NOUNS = [
   'forest',
   'fox',
   'garden',
+  'gem',
   'glade',
   'harbor',
   'hawk',
   'hazel',
   'island',
   'jasmine',
+  'key',
   'lake',
   'lantern',
   'leaf',
@@ -203,17 +208,19 @@ export class PasswordGeneratorService {
     if (options.mode === 'memorable') {
       const { adjectives, nouns } = this.memorableWordPool(options.avoidAmbiguous);
       const averageWordLength = 5.5;
-      const numberLength = options.numbers ? 2 : 0;
+      const numberLength = options.numbers
+        ? this.estimatedMemorableDigitCount(options.memorableLength)
+        : 0;
       const estimatedWords = Math.max(
         2,
         Math.ceil((options.memorableLength - numberLength) / (averageWordLength + 1)),
       );
       const wordPoolSize = adjectives.length + nouns.length;
-      const contractionPoolSize = this.memorableContractionPool(options.avoidAmbiguous).length;
+      const contractionPoolSize = this.memorableContractionPool().length;
       const numberPool = options.avoidAmbiguous ? 8 : 10;
       const bits =
         estimatedWords * Math.log2(wordPoolSize) +
-        (options.numbers ? Math.log2(numberPool ** 2) : 0) +
+        (options.numbers ? Math.log2(numberPool ** numberLength) : 0) +
         (options.substituteCharacters ? Math.log2(3) + 2 : 0) +
         (options.useContractions ? Math.log2(contractionPoolSize) : 0);
       return Math.round(bits);
@@ -260,52 +267,204 @@ export class PasswordGeneratorService {
   }
 
   private generateMemorable(options: GeneratorOptions): GeneratedPassword {
-    if (options.memorableLength < 12) {
-      throw new Error('Use at least 12 characters for a memorable password.');
+    if (options.memorableLength < 6) {
+      throw new Error('Use at least 6 characters for a memorable password.');
     }
     const connector = this.cleanConnector(options.connector);
     const { adjectives, nouns } = this.memorableWordPool(options.avoidAmbiguous);
-    const contractions = this.memorableContractionPool(options.avoidAmbiguous);
+    const contractions = this.memorableContractionPool();
     const digits = options.avoidAmbiguous ? '23456789' : '0123456789';
-    const numberEnding = options.numbers
-      ? `${this.pickCharacter(digits)}${this.pickCharacter(digits)}`
-      : '';
-    const bodyLength = options.memorableLength - numberEnding.length;
-    const readableWords: string[] = [];
-    let wordIndex = 0;
+    const selected = this.selectMemorableWords(options, connector, adjectives, nouns, contractions);
+    const readableWords = selected.words.map((word) =>
+      this.styleMemorableWord(word, options.uppercase),
+    );
+    let passwordWords = [...readableWords];
+    let digitCount = selected.digitCount;
 
-    while (readableWords.join(connector).length < bodyLength) {
-      const useContraction = options.useContractions && wordIndex === 0;
-      const pool = useContraction ? contractions : wordIndex % 2 === 0 ? adjectives : nouns;
-      const word = this.pickItem(pool);
-      const readableWord = options.uppercase ? this.capitalize(word) : word.toLowerCase();
-      readableWords.push(readableWord);
-      wordIndex++;
-    }
-
-    const readableBody = readableWords.join(connector);
-    let body = readableBody.slice(0, bodyLength);
-    if (body.endsWith(connector)) {
-      const continuation = [...readableBody.slice(bodyLength)].find(
-        (character) => character !== connector,
-      );
-      body = `${body.slice(0, -1)}${continuation ?? 'a'}`;
-    }
     if (options.substituteCharacters) {
-      body = this.applyMemorableSubstitutions(body, options.avoidAmbiguous).slice(0, bodyLength);
+      const minimumDigits = options.numbers ? Math.min(passwordWords.length, digitCount) : 0;
+      const substituted = this.applyMemorableSubstitutions(
+        passwordWords.join('\u0000'),
+        options.avoidAmbiguous,
+        Math.max(0, digitCount - minimumDigits),
+      );
+      passwordWords = substituted.value.split('\u0000');
+      digitCount -= substituted.expansion;
     }
-    if (options.uppercase && !/[A-Z]/.test(body)) {
-      const lowercaseIndex = body.search(/[a-z]/);
-      if (lowercaseIndex >= 0) {
-        body = `${body.slice(0, lowercaseIndex)}${body[lowercaseIndex].toUpperCase()}${body.slice(lowercaseIndex + 1)}`;
+
+    if (options.uppercase && !passwordWords.some((word) => /[A-Z]/.test(word))) {
+      const wordIndex = passwordWords.findIndex((word) => /[a-z]/.test(word));
+      if (wordIndex >= 0) {
+        const letterIndex = passwordWords[wordIndex].search(/[a-z]/);
+        const word = passwordWords[wordIndex];
+        passwordWords[wordIndex] =
+          word.slice(0, letterIndex) +
+          word[letterIndex].toUpperCase() +
+          word.slice(letterIndex + 1);
       }
     }
+
+    const value = options.numbers
+      ? this.insertMemorableNumberRuns(passwordWords, connector, digitCount, digits)
+      : passwordWords.join(connector);
+    if (value.length !== options.memorableLength) {
+      throw new Error('A complete memorable password could not be generated at this length.');
+    }
     return {
-      value: `${body}${numberEnding}`,
-      readableText: options.substituteCharacters
-        ? `${readableWords.join(' ')}${numberEnding ? ` ${numberEnding}` : ''}`
-        : null,
+      value,
+      readableText: options.substituteCharacters ? readableWords.join(' ') : null,
     };
+  }
+
+  private selectMemorableWords(
+    options: GeneratorOptions,
+    connector: string,
+    adjectives: readonly string[],
+    nouns: readonly string[],
+    contractions: readonly string[],
+  ): { readonly words: readonly string[]; readonly digitCount: number } {
+    const digitCounts = options.numbers
+      ? this.memorableDigitCandidates(options.memorableLength)
+      : [0];
+    const minimumWords = options.numbers
+      ? options.memorableLength >= 9
+        ? 2
+        : 1
+      : options.memorableLength >= 7
+        ? 2
+        : 1;
+
+    for (const digitCount of digitCounts) {
+      const words = this.findCompleteMemorableWords(
+        options.memorableLength - digitCount,
+        connector.length,
+        minimumWords,
+        options.useContractions,
+        adjectives,
+        nouns,
+        contractions,
+      );
+      if (words) return { words, digitCount };
+    }
+    throw new Error('A complete memorable password could not be generated at this length.');
+  }
+
+  private memorableDigitCandidates(length: number): number[] {
+    const minimum = length >= 12 ? 4 : length >= 9 ? 2 : 1;
+    const maximum =
+      length >= 12
+        ? Math.min(8, Math.max(4, Math.floor(length / 3)))
+        : length >= 9
+          ? 3
+          : Math.min(2, length - 3);
+    const candidates = Array.from(
+      { length: Math.max(0, maximum - minimum + 1) },
+      (_, index) => minimum + index,
+    );
+    this.shuffle(candidates);
+    return candidates;
+  }
+
+  private findCompleteMemorableWords(
+    bodyLength: number,
+    connectorLength: number,
+    minimumWords: number,
+    useContractions: boolean,
+    adjectives: readonly string[],
+    nouns: readonly string[],
+    contractions: readonly string[],
+  ): readonly string[] | null {
+    const failedStates = new Set<string>();
+    const maximumWords = Math.max(minimumWords, Math.ceil(bodyLength / 3));
+    const search = (wordIndex: number, remaining: number): readonly string[] | null => {
+      if (remaining === 0) return wordIndex >= minimumWords ? [] : null;
+      if (remaining < 0 || wordIndex >= maximumWords) return null;
+
+      const state = `${wordIndex}:${remaining}`;
+      if (failedStates.has(state)) return null;
+      const pool =
+        useContractions && wordIndex === 0
+          ? contractions
+          : wordIndex % 2 === 0
+            ? adjectives
+            : nouns;
+      const separatorLength = wordIndex === 0 ? 0 : connectorLength;
+      const candidates = pool.filter((word) => word.length + separatorLength <= remaining);
+      this.shuffle(candidates);
+      for (const word of candidates) {
+        const rest = search(wordIndex + 1, remaining - separatorLength - word.length);
+        if (rest) return [word, ...rest];
+      }
+      failedStates.add(state);
+      return null;
+    };
+    return search(0, bodyLength);
+  }
+
+  private estimatedMemorableDigitCount(length: number): number {
+    if (length <= 7) return 1;
+    if (length <= 11) return 2;
+    const maximum = Math.min(8, Math.max(4, Math.floor(length / 3)));
+    return Math.round((4 + maximum) / 2);
+  }
+
+  private insertMemorableNumberRuns(
+    segments: readonly string[],
+    connector: string,
+    digitCount: number,
+    digits: string,
+  ): string {
+    if (segments.length < 2) {
+      let numberRun = '';
+      while (numberRun.length < digitCount) numberRun += this.pickCharacter(digits);
+      return `${segments[0]}${numberRun}`;
+    }
+
+    const groupCount = Math.min(segments.length, digitCount);
+    const selectedIndexes = [0];
+    if (groupCount > 1) selectedIndexes.push(segments.length - 1);
+    const middleIndexes = Array.from(
+      { length: Math.max(0, segments.length - 2) },
+      (_, index) => index + 1,
+    );
+    this.shuffle(middleIndexes);
+    selectedIndexes.push(...middleIndexes.slice(0, Math.max(0, groupCount - 2)));
+
+    const groupLengths = new Map(selectedIndexes.map((index) => [index, 1]));
+    let remainingDigits = digitCount - groupCount;
+    while (remainingDigits > 0) {
+      const index = this.pickItem(selectedIndexes);
+      groupLengths.set(index, (groupLengths.get(index) ?? 0) + 1);
+      remainingDigits--;
+    }
+
+    return segments
+      .map((segment, index) => {
+        const length = groupLengths.get(index) ?? 0;
+        let numberRun = '';
+        while (numberRun.length < length) numberRun += this.pickCharacter(digits);
+        return `${segment}${numberRun}`;
+      })
+      .join(connector);
+  }
+
+  private styleMemorableWord(value: string, uppercase: boolean): string {
+    const word = value.toLowerCase();
+    if (!uppercase) return word;
+
+    const characters = [...this.capitalize(word)];
+    if (word.includes("'")) return characters.join('');
+    const candidates = characters
+      .map((character, index) => (index > 0 && /[a-z]/.test(character) ? index : -1))
+      .filter((index) => index >= 0);
+    this.shuffle(candidates);
+    const additionalCapitals = candidates.length
+      ? this.randomInt(Math.min(3, candidates.length + 1))
+      : 0;
+    for (const index of candidates.slice(0, additionalCapitals)) {
+      characters[index] = characters[index].toUpperCase();
+    }
+    return characters.join('');
   }
 
   private cleanConnector(value: string): string {
@@ -317,7 +476,11 @@ export class PasswordGeneratorService {
     return connector;
   }
 
-  private applyMemorableSubstitutions(value: string, avoidAmbiguous: boolean): string {
+  private applyMemorableSubstitutions(
+    value: string,
+    avoidAmbiguous: boolean,
+    expansionBudget: number,
+  ): { readonly value: string; readonly expansion: number } {
     const replacements: Readonly<Record<string, readonly string[]>> = {
       a: ['@', '^'],
       b: ['8', '13', 'l3'],
@@ -356,22 +519,31 @@ export class PasswordGeneratorService {
         return choices?.length ? { index, choices } : null;
       })
       .filter((candidate): candidate is { index: number; choices: string[] } => !!candidate);
-    if (!candidates.length) return value;
+    if (!candidates.length) return { value, expansion: 0 };
 
     this.shuffle(candidates);
     const maximumChanges = Math.min(3, Math.max(1, Math.ceil(candidates.length / 8)));
     const changeCount = 1 + this.randomInt(maximumChanges);
-    const selected = new Map(
-      candidates
-        .slice(0, changeCount)
-        .map((candidate) => [candidate.index, this.pickItem(candidate.choices)] as const),
-    );
-    return characters.map((character, index) => selected.get(index) ?? character).join('');
+    const selected = new Map<number, string>();
+    let expansion = 0;
+    for (const candidate of candidates) {
+      const availableChoices = candidate.choices.filter(
+        (choice) => choice.length - 1 <= expansionBudget - expansion,
+      );
+      if (!availableChoices.length) continue;
+      const replacement = this.pickItem(availableChoices);
+      selected.set(candidate.index, replacement);
+      expansion += replacement.length - 1;
+      if (selected.size >= changeCount) break;
+    }
+    return {
+      value: characters.map((character, index) => selected.get(index) ?? character).join(''),
+      expansion,
+    };
   }
 
-  private memorableContractionPool(avoidAmbiguous: boolean): readonly string[] {
-    if (!avoidAmbiguous) return CONTRACTIONS;
-    return CONTRACTIONS.filter((contraction) => !/[ilo01]/i.test(contraction));
+  private memorableContractionPool(): readonly string[] {
+    return CONTRACTIONS;
   }
 
   private memorableWordPool(avoidAmbiguous: boolean): {

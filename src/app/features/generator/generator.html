@@ -90,13 +90,13 @@
         <input
           id="memorable-length"
           type="range"
-          min="12"
+          min="6"
           max="64"
           step="1"
           [ngModel]="options().memorableLength"
           (ngModelChange)="update('memorableLength', $event)"
         />
-        <small>The result always matches this length, including connector and digits.</small>
+        <small>The result always matches this length. Twelve or more is recommended.</small>
       </div>
     } @else {
       <div class="range-control">
@@ -138,7 +138,7 @@
         <label>
           <span
             ><strong>Capitalize words</strong
-            ><small>Velvet-Harbor instead of velvet-harbor</small></span
+            ><small>Adds capitals with natural or mixed letter case</small></span
           >
           <input
             type="checkbox"
@@ -150,8 +150,10 @@
 
       <label>
         <span
-          ><strong>{{ isMemorable() ? 'Add two digits' : 'Numbers' }}</strong
-          ><small>{{ isMemorable() ? 'Adds a short numeric ending' : '0–9' }}</small></span
+          ><strong>{{ isMemorable() ? 'Add number groups' : 'Numbers' }}</strong
+          ><small>{{
+            isMemorable() ? 'Places digits between words and at the end' : '0–9'
+          }}</small></span
         >
         <input
           type="checkbox"
