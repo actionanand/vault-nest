@@ -29,6 +29,7 @@ CI builds Angular, runs `cap add android`, synchronises Capacitor, and applies t
 - [Android release build guide](ANDROID.md)
 - [Android and CI/CD implementation notes](ANDROID_CI.md)
 - [Android splash and credential notification special cases](ANDROID_SPECIAL_CASES.md)
+- [Android biometric authentication and tablet face-unlock limitations](ANDROID_BIOMETRIC_AUTHENTICATION.md)
 - [Encrypted backup and restore](BACKUP_RESTORE.md)
 - [Password generator](PASSWORD_GENERATOR.md)
 - [Wear OS companion build and installation](WEAR_OS.md)
