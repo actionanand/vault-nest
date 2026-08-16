@@ -33,6 +33,15 @@ This reuses the existing `metadata`/`vault_metadata` record, so IndexedDB and SQ
 - Optional 2FA backup codes are stored only as `VaultItem.backupCodes` inside the encrypted item payload. They do not add a plaintext SQLite column or require a database migration.
 - Record deletion should first set `deletedAt`; physical deletion belongs to confirmed trash cleanup.
 
+## Item save validation
+
+Credential items require a non-whitespace title and at least one labelled dynamic field containing a
+non-whitespace value. Secure-note items may use Notes as their required content, while reusable
+templates remain intentionally blank. The editor highlights blocking controls and sections only
+after a save attempt. Empty dynamic fields are omitted from the encrypted payload for normal items;
+the details view also ignores empty legacy fields defensively. Password values themselves are not
+trimmed, so intentional leading or trailing characters remain intact.
+
 ## Clear operations
 
 The storage abstraction deliberately exposes two scopes:

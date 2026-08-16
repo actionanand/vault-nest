@@ -51,6 +51,12 @@ import { AppIcon } from './app-icon';
         </p>
       </div>
     }
+    @if (field().type === 'PASSWORD' && field().generatedPlainText) {
+      <div class="generated-plain-text">
+        <span>Plain English</span>
+        <p>{{ field().generatedPlainText }}</p>
+      </div>
+    }
     @if (message()) {
       <span class="toast" role="status">{{ message() }}</span>
     }`,
@@ -116,6 +122,24 @@ import { AppIcon } from './app-icon';
     }
     .password-strength strong {
       color: var(--text);
+    }
+    .generated-plain-text {
+      display: grid;
+      gap: 0.18rem;
+      padding: 0 0 0.8rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .generated-plain-text span {
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .generated-plain-text p {
+      margin: 0;
+      font-size: 0.75rem;
+      overflow-wrap: anywhere;
     }
     @media (max-width: 420px) {
       .password-strength p {

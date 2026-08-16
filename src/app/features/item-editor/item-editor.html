@@ -43,11 +43,20 @@
   </header>
 
   <form [formGroup]="form" (ngSubmit)="save()">
-    <section class="form-card identity-card">
+    <section
+      class="form-card identity-card"
+      [class.validation-error]="saveAttempted() && form.controls.title.invalid"
+    >
       <div class="identity-copy">
         <label>
           <span class="title-word">Title</span>
           <input type="text" formControlName="title" autocomplete="off" placeholder="e.g. GitHub" />
+          @if (
+            saveAttempted() &&
+            (form.controls.title.hasError('required') || form.controls.title.hasError('pattern'))
+          ) {
+            <small class="validation-message" role="alert">Enter a title before saving.</small>
+          }
         </label>
       </div>
       <button
@@ -60,13 +69,23 @@
       </button>
     </section>
 
-    <section class="form-card fields-card" formArrayName="fields">
+    <section
+      class="form-card fields-card"
+      formArrayName="fields"
+      [class.validation-error]="saveAttempted() && type !== 'NOTE' && !hasRequiredContent()"
+    >
       <div class="section-title">
         <div>
           <h2>Fields</h2>
           <p>Passwords, PINs, secrets, OTP seeds, and hidden values stay concealed by default.</p>
         </div>
       </div>
+
+      @if (saveAttempted() && type !== 'NOTE' && !hasRequiredContent()) {
+        <p class="validation-message" role="alert">
+          Enter a value in at least one field before saving.
+        </p>
+      }
 
       @for (field of fields.controls; track field.controls.id.value; let index = $index) {
         <article class="dynamic-field" [formGroupName]="index">
@@ -112,7 +131,17 @@
               autocomplete="off"
               [attr.aria-label]="field.controls.label.value + ' value'"
               placeholder="Value"
+              (input)="clearGeneratedPlainText(index)"
             />
+          }
+
+          @if (
+            field.controls.type.value === 'PASSWORD' && field.controls.generatedPlainText.value
+          ) {
+            <p class="generated-plain-text">
+              <span>Plain English</span>
+              {{ field.controls.generatedPlainText.value }}
+            </p>
           }
 
           @if (field.controls.type.value === 'PASSWORD') {
@@ -140,6 +169,17 @@
                 [options]="fieldTypePickerOptions"
                 (valueChange)="setFieldType(index, $event)"
               />
+              @if (field.controls.type.value === 'PASSWORD') {
+                <button
+                  class="icon-button"
+                  type="button"
+                  (click)="openPasswordGenerator(index)"
+                  aria-label="Generate a password for this field"
+                  title="Generate password"
+                >
+                  <app-icon name="sparkle" />
+                </button>
+              }
               <button
                 class="icon-button"
                 type="button"
@@ -198,7 +238,10 @@
       </button>
     </section>
 
-    <section class="form-card">
+    <section
+      class="form-card"
+      [class.validation-error]="saveAttempted() && type === 'NOTE' && !hasRequiredContent()"
+    >
       <h2>Organisation</h2>
       <label>
         Labels <span>Comma separated</span>
@@ -265,6 +308,11 @@
           autocapitalize="off"
           spellcheck="false"
         ></textarea>
+        @if (saveAttempted() && type === 'NOTE' && !hasRequiredContent()) {
+          <p class="validation-message" role="alert">
+            Enter Notes or add a field with a value before saving.
+          </p>
+        }
       </div>
     </section>
 
@@ -277,6 +325,13 @@
     </div>
   </form>
 </main>
+
+@if (passwordGeneratorFieldIndex() !== null) {
+  <app-password-generator-dialog
+    (cancelled)="passwordGeneratorFieldIndex.set(null)"
+    (accepted)="applyGeneratedPassword($event)"
+  />
+}
 
 @if (addTypeOpen()) {
   <div class="dialog-backdrop">

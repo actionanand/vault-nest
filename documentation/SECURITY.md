@@ -105,3 +105,10 @@ Vault Nest overwrites app-copied clipboard values after five minutes while its p
 Long-press selection on touch devices and the web hover selector enter an explicit batch mode. Batch deletion always requires acknowledgement; active or archived items move to Trash, while deletion from Trash is permanent. Batch favourite only changes the favourite flag and never exposes decrypted field values.
 
 New and edit routes use a router-level deactivation guard. If the reactive form is dirty, navigation through the side navigation, bottom navigation, browser history, or a direct route change pauses for discard confirmation. Browser or tab unload also uses the platform unload warning. Successful saves and confirmed item deletion mark the form pristine before navigation.
+
+Background and inactivity locking do not perform router navigation, because the unsaved-changes
+guard would otherwise leave the editor visible after the vault key had been cleared. The vault shell
+instead clears decrypted store state and displays an in-place full-screen unlock overlay. A dirty
+editor component remains mounted but inaccessible below that overlay; after successful password,
+easy-login, or biometric authentication, encrypted store state is reloaded and the same draft can
+continue. Save also checks the live unlock state before encryption, preventing a locked-key failure.

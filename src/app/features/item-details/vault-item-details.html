@@ -111,7 +111,9 @@
   </div>
   <div class="field-list">
     @for (field of item().fields; track field.id) {
-      <app-secret-field [field]="field" />
+      @if (field.value.trim()) {
+        <app-secret-field [field]="field" />
+      }
     }
   </div>
   @if (item().backupCodes) {

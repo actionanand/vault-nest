@@ -50,6 +50,17 @@ The optional **English contractions** setting guarantees that the phrase include
 contraction, such as `I'm`, `I'll`, `we're`, or `can't`. The generator returns the underlying English
 words separately so the UI can display a readable guide without changing the copied password.
 
+## Password-field generator
+
+Password fields in the item editor include a Generate action immediately before the visibility
+action. It opens a focused generator dialog and does not change the field until the user confirms
+with **OK**. Cancelling leaves the existing password untouched.
+
+When the confirmed result uses both memorable mode and memorable substitutions, its plain-English
+guide is stored with that password field inside the encrypted item payload and displayed in muted
+text in the editor and credential details. Manually editing the password, changing its field type,
+or saving it as a blank template removes the guide so it can never describe a different password.
+
 ## Randomness and strength
 
 All selections use `crypto.getRandomValues`. Rejection sampling avoids modulo bias when mapping a

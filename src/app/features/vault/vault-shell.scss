@@ -4,6 +4,36 @@
   grid-template-columns: 17rem minmax(0, 1fr);
   background: var(--surface-subtle);
 }
+
+.shell-content {
+  display: contents;
+}
+
+.vault-lock-overlay,
+.vault-resume-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: block;
+}
+
+.vault-resume-overlay {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: var(--surface-subtle);
+}
+
+.vault-resume-overlay > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
 .drawer {
   position: sticky;
   top: 0;

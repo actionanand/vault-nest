@@ -17,6 +17,7 @@ import {
 } from '../../core/services/intrusion-evidence.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { ExpiryReminderService } from '../../core/services/expiry-reminder.service';
+import { Unlock } from '../auth/unlock';
 
 @Component({
   selector: 'app-vault-shell',
@@ -29,6 +30,7 @@ import { ExpiryReminderService } from '../../core/services/expiry-reminder.servi
     AppIcon,
     BrandMark,
     ConfirmationDialog,
+    Unlock,
   ],
   templateUrl: './vault-shell.html',
   styleUrl: './vault-shell.scss',
@@ -40,7 +42,7 @@ import { ExpiryReminderService } from '../../core/services/expiry-reminder.servi
   },
 })
 export class VaultShell implements OnInit, OnDestroy {
-  private readonly auth = inject(AuthStore);
+  readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
   readonly vault = inject(VaultStore);
   private readonly storage = inject(StorageEngine);
@@ -59,6 +61,7 @@ export class VaultShell implements OnInit, OnDestroy {
   readonly evidenceOpen = signal(false);
   readonly selectedEvidence = signal<IntrusionEvidenceEntry | null>(null);
   readonly evidenceDeleteOpen = signal(false);
+  readonly resumingAfterUnlock = signal(false);
   readonly removeAccountForm = new FormGroup({
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     acknowledgement: new FormControl(false, {
@@ -86,10 +89,26 @@ export class VaultShell implements OnInit, OnDestroy {
     if (this.timer) clearInterval(this.timer);
     this.intrusionEvidence.selectedImage.set(null);
   }
-  async lock(): Promise<void> {
+  lock(): void {
+    this.drawerOpen.set(false);
     this.vault.clear();
     this.auth.lock();
-    await this.router.navigateByUrl('/unlock');
+  }
+  async resumeAfterUnlock(): Promise<void> {
+    if (this.resumingAfterUnlock()) return;
+    this.resumingAfterUnlock.set(true);
+    try {
+      await this.vault.load();
+      this.auth.touch();
+      void this.websiteIcons.refreshMissing(this.vault.activeItems());
+    } catch (error: unknown) {
+      this.auth.error.set(
+        error instanceof Error ? error.message : 'The vault could not be restored after unlock.',
+      );
+      this.auth.lock();
+    } finally {
+      this.resumingAfterUnlock.set(false);
+    }
   }
   openRemoveAccount(): void {
     this.drawerOpen.set(false);

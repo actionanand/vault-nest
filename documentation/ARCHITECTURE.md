@@ -32,12 +32,14 @@ IndexedDbStorage (browser) | SqliteStorage (Android)
 2. A missing header routes to setup. An existing header routes to unlock.
 3. Setup creates a random 256-bit vault key. The master password derives only a wrapping key.
 4. Unlock unwraps the vault key into memory and decrypts records on demand.
-5. Lock removes the key reference and decrypted store state, then returns to the lock screen.
+5. Lock removes the key reference and decrypted store state, then places the lock screen over the
+   current vault route. After authentication, encrypted records are reloaded before the overlay is
+   removed.
 6. Inactivity and background transitions apply the stored locking preferences.
 
 ## State rules
 
-Signals own local state. Computed signals derive selection, filters, favourites, strength, and entropy. Updates use immutable `set`/`update` operations. Decrypted vault items are cleared when locking; they are never logged.
+Signals own local state. Computed signals derive selection, filters, favourites, strength, and entropy. Updates use immutable `set`/`update` operations. Decrypted vault items are cleared when locking; they are never logged. A dirty editor form remains mounted beneath the inaccessible full-screen lock overlay so an unsaved draft can continue after reauthentication; the draft is never written to storage until Save succeeds with an unlocked key.
 
 ## Responsive shell
 

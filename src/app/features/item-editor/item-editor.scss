@@ -55,6 +55,11 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
+
+.form-card.validation-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
 .form-card h2 {
   margin: 0;
   font-size: 0.95rem;
@@ -102,6 +107,20 @@
 .field-dialog textarea:focus {
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 3px var(--focus);
+}
+
+.form-card input.ng-invalid.ng-touched,
+.form-card textarea.ng-invalid.ng-touched {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.validation-message {
+  display: block;
+  margin: 0.35rem 0 0;
+  color: var(--danger) !important;
+  font-size: 0.7rem;
+  font-weight: 750;
 }
 .identity-card {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -285,6 +304,22 @@
 }
 .password-strength strong {
   color: var(--text);
+}
+
+.generated-plain-text {
+  display: grid;
+  gap: 0.18rem;
+  margin: -0.15rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.generated-plain-text span {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 .add-field-button {
   display: inline-flex;

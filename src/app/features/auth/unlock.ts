@@ -1,4 +1,15 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  OnDestroy,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthStore } from '../../core/services/auth.store';
@@ -22,6 +33,7 @@ import { BrandMark } from '../../shared/components/brand-mark';
           >{{ useEasyLogin() ? easyLoginLabel() : 'Master password'
           }}<span class="field"
             ><input
+              #passwordInput
               [type]="visible() ? 'text' : 'password'"
               formControlName="password"
               [attr.maxlength]="useEasyLogin() ? 4 : null"
@@ -82,6 +94,9 @@ export class Unlock implements OnDestroy {
   private readonly credentialNotifications = inject(CredentialNotificationService);
   readonly visible = signal(false);
   readonly busy = signal(false);
+  readonly embedded = input(false);
+  readonly unlocked = output<void>();
+  private readonly passwordInput = viewChild<ElementRef<HTMLInputElement>>('passwordInput');
   readonly useEasyLogin = signal(
     this.auth.easyUnlockMode() !== 'DISABLED' && !this.auth.easyVerificationRequired(),
   );
@@ -111,6 +126,10 @@ export class Unlock implements OnDestroy {
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
+  constructor() {
+    afterNextRender(() => this.passwordInput()?.nativeElement.focus());
+  }
+
   async submit(): Promise<void> {
     if (this.form.invalid) return;
     this.busy.set(true);
@@ -121,7 +140,7 @@ export class Unlock implements OnDestroy {
         : await this.auth.unlock(value);
       if (unlocked) {
         this.form.reset();
-        await this.router.navigateByUrl('/vault');
+        await this.finishUnlock();
       } else if (this.auth.accountWasDeleted()) {
         await this.credentialNotifications.clearCopyShortcuts();
         this.form.reset();
@@ -148,10 +167,18 @@ export class Unlock implements OnDestroy {
   async unlockBiometric(): Promise<void> {
     this.busy.set(true);
     try {
-      if (await this.auth.unlockWithBiometric()) await this.router.navigateByUrl('/vault');
+      if (await this.auth.unlockWithBiometric()) await this.finishUnlock();
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private async finishUnlock(): Promise<void> {
+    if (this.embedded()) {
+      this.unlocked.emit();
+      return;
+    }
+    await this.router.navigateByUrl('/vault');
   }
 
   ngOnDestroy(): void {

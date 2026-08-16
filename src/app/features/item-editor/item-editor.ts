@@ -15,6 +15,9 @@ import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
 import { ExpiryReminderService } from '../../core/services/expiry-reminder.service';
+import type { GeneratedPassword } from '../../core/services/password-generator.service';
+import { PasswordGeneratorDialog } from '../../shared/components/password-generator-dialog';
+import { AuthStore } from '../../core/services/auth.store';
 
 type FieldForm = FormGroup<{
   id: FormControl<string>;
@@ -22,6 +25,7 @@ type FieldForm = FormGroup<{
   value: FormControl<string>;
   type: FormControl<VaultFieldType>;
   sensitive: FormControl<boolean>;
+  generatedPlainText: FormControl<string>;
 }>;
 
 interface FieldTypeOption {
@@ -90,6 +94,7 @@ const FIELD_TYPES: readonly FieldTypeOption[] = [
     VaultItemIcon,
     ConfirmationDialog,
     SelectPicker,
+    PasswordGeneratorDialog,
   ],
   templateUrl: './item-editor.html',
   styleUrl: './item-editor.scss',
@@ -104,6 +109,7 @@ export class ItemEditor implements OnInit {
   private readonly passwordStrengthService = inject(PasswordStrengthService);
   private readonly websiteIcons = inject(WebsiteIconService);
   private readonly expiryReminders = inject(ExpiryReminderService);
+  private readonly auth = inject(AuthStore);
   existing: VaultItem | null = null;
   private readonly creatingFromTemplate =
     this.route.snapshot.routeConfig?.path === 'new/template/:id';
@@ -111,7 +117,7 @@ export class ItemEditor implements OnInit {
   readonly form = new FormGroup({
     title: new FormControl('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.maxLength(160)],
+      validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(160)],
     }),
     notes: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(20_000)] }),
     backupCodes: new FormControl('', {
@@ -148,9 +154,11 @@ export class ItemEditor implements OnInit {
   readonly deleting = signal(false);
   readonly discardDialogOpen = signal(false);
   readonly fieldMessage = signal('');
+  readonly saveAttempted = signal(false);
   readonly textTab = signal<'NOTES' | 'BACKUP_CODES'>('NOTES');
   readonly backupCodesVisible = signal(false);
   readonly pendingFieldType = signal<VaultFieldType>('TEXT');
+  readonly passwordGeneratorFieldIndex = signal<number | null>(null);
   readonly customIconError = signal('');
   readonly strengthSegments = [1, 2, 3, 4] as const;
   readonly addFieldForm = new FormGroup({
@@ -235,7 +243,12 @@ export class ItemEditor implements OnInit {
     this.form.markAsDirty();
   }
   async save(): Promise<void> {
-    if (this.form.invalid) {
+    if (!this.auth.isUnlocked()) {
+      this.showFieldMessage('Unlock the vault to continue editing and save.');
+      return;
+    }
+    this.saveAttempted.set(true);
+    if (this.form.invalid || !this.hasRequiredContent()) {
       this.form.markAllAsTouched();
       return;
     }
@@ -260,16 +273,30 @@ export class ItemEditor implements OnInit {
       createdAt: this.existing?.createdAt ?? now,
       updatedAt: now,
       fields: value.fields
-        .filter((field) => field.label.trim())
-        .map((field): VaultField => ({
-          ...field,
-          id: field.id || crypto.randomUUID(),
-          label: field.label.trim(),
-          value: editingTemplate ? '' : field.value,
-        })),
+        .filter((field) => field.label.trim() && (editingTemplate || Boolean(field.value.trim())))
+        .map((field): VaultField => {
+          const generatedPlainText =
+            !editingTemplate && field.type === 'PASSWORD' ? field.generatedPlainText.trim() : '';
+          return {
+            id: field.id || crypto.randomUUID(),
+            label: field.label.trim(),
+            value: editingTemplate ? '' : field.value,
+            type: field.type,
+            sensitive: field.sensitive,
+            ...(generatedPlainText ? { generatedPlainText } : {}),
+          };
+        }),
       icon: value.icon,
     };
-    await this.vault.save(item);
+    try {
+      await this.vault.save(item);
+    } catch (error: unknown) {
+      if (!this.auth.isUnlocked()) {
+        this.showFieldMessage('Unlock the vault to continue editing and save.');
+        return;
+      }
+      throw error;
+    }
     await this.expiryReminders.scheduleForItem(item, Boolean(item.expiresAt));
     const previousWebsite = this.existing ? this.websiteIcons.firstWebsite(this.existing) : null;
     const websiteChanged =
@@ -294,6 +321,7 @@ export class ItemEditor implements OnInit {
     const field = this.fields.at(index);
     field.controls.type.setValue(value as VaultFieldType);
     field.controls.sensitive.setValue(this.fieldOption(field.controls.type.value).sensitive);
+    if (field.controls.type.value !== 'PASSWORD') field.controls.generatedPlainText.setValue('');
     this.form.markAsDirty();
   }
   fieldTypeIcon(type: VaultFieldType): string {
@@ -325,6 +353,10 @@ export class ItemEditor implements OnInit {
     return this.textTab() === 'NOTES' ? this.form.controls.notes : this.form.controls.backupCodes;
   }
   canDeactivate(): boolean | Promise<boolean> {
+    if (this.auth.status() === 'NEEDS_SETUP') {
+      this.form.markAsPristine();
+      return true;
+    }
     if (!this.form.dirty) return true;
     if (this.deactivatePromise) return this.deactivatePromise;
     this.discardDialogOpen.set(true);
@@ -416,6 +448,43 @@ export class ItemEditor implements OnInit {
   passwordStrength(value: string): { label: string; crackTime: string; score: number } {
     return this.passwordStrengthService.analyse(value);
   }
+  hasRequiredContent(): boolean {
+    if (this.existing?.template) return true;
+    if (
+      this.fields.controls.some(
+        (field) =>
+          Boolean(field.controls.label.value.trim()) && Boolean(field.controls.value.value.trim()),
+      )
+    ) {
+      return true;
+    }
+    return this.type === 'NOTE' && Boolean(this.form.controls.notes.value.trim());
+  }
+  openPasswordGenerator(index: number): void {
+    if (this.fields.at(index).controls.type.value !== 'PASSWORD') return;
+    this.passwordGeneratorFieldIndex.set(index);
+  }
+  applyGeneratedPassword(result: GeneratedPassword): void {
+    const index = this.passwordGeneratorFieldIndex();
+    if (index === null || index >= this.fields.length) return;
+    const field = this.fields.at(index);
+    field.controls.value.setValue(result.value);
+    field.controls.generatedPlainText.setValue(result.readableText ?? '');
+    field.markAsDirty();
+    this.form.markAsDirty();
+    this.passwordGeneratorFieldIndex.set(null);
+    this.showFieldMessage(
+      result.readableText
+        ? 'Password and its plain-English guide were added.'
+        : 'Generated password added.',
+    );
+  }
+  clearGeneratedPlainText(index: number): void {
+    const control = this.fields.at(index).controls.generatedPlainText;
+    if (!control.value) return;
+    control.setValue('');
+    control.markAsDirty();
+  }
   private showFieldMessage(message: string): void {
     this.fieldMessage.set(message);
     setTimeout(() => {
@@ -428,6 +497,7 @@ export class ItemEditor implements OnInit {
     value: string;
     type: VaultFieldType;
     sensitive: boolean;
+    generatedPlainText?: string;
   }): FieldForm {
     return new FormGroup({
       id: new FormControl(value.id ?? crypto.randomUUID(), { nonNullable: true }),
@@ -441,6 +511,7 @@ export class ItemEditor implements OnInit {
       }),
       type: new FormControl(value.type, { nonNullable: true }),
       sensitive: new FormControl(value.sensitive, { nonNullable: true }),
+      generatedPlainText: new FormControl(value.generatedPlainText ?? '', { nonNullable: true }),
     });
   }
   private patch(item: VaultItem): void {
@@ -471,6 +542,7 @@ export class ItemEditor implements OnInit {
           ...field,
           id: crypto.randomUUID(),
           value: '',
+          generatedPlainText: '',
         }),
       ),
     );
