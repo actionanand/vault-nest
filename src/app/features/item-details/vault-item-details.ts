@@ -164,6 +164,7 @@ export class VaultItemDetails {
         ...field,
         id: crypto.randomUUID(),
         value: '',
+        generatedPlainText: undefined,
         expiresAt: undefined,
       })),
     };

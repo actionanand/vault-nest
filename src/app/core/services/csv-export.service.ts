@@ -119,12 +119,14 @@ export class CsvExportService {
     readonly type: VaultFieldType;
     readonly value: string;
     readonly sensitive: boolean;
+    readonly generatedPlainText?: string;
   } {
     return {
       label: field.label,
       type: field.type,
       value: field.value,
       sensitive: field.sensitive,
+      ...(field.generatedPlainText ? { generatedPlainText: field.generatedPlainText } : {}),
     };
   }
 

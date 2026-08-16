@@ -24,6 +24,7 @@ export interface VaultField {
   readonly value: string;
   readonly type: VaultFieldType;
   readonly sensitive: boolean;
+  readonly generatedPlainText?: string;
   readonly expiresAt?: string;
   readonly notes?: string;
 }
