@@ -62,9 +62,15 @@ brand icon, runs Wear unit tests, builds and verifies signed artifacts, and comm
 to `main-wear/releases/wear`. It also uploads a versioned `vault-nest-wear-VERSION_NAME` Actions
 artifact containing:
 
-- `vault-nest-wear-debug.apk`
-- `vault-nest-wear-release.apk`
-- `vault-nest-wear-release.aab`
+- `vault-nest-wear-debug-VERSION_NAME.apk`
+- `vault-nest-wear-release-VERSION_NAME.apk`
+- `vault-nest-wear-release-VERSION_NAME.aab`
+
+For example, Android base `1.0.15` with Wear revision `1` produces
+`vault-nest-wear-release-1.0.15-wear.1.apk` and
+`vault-nest-wear-release-1.0.15-wear.1.aab`. CI verifies the debug APK with its Android debug key
+and verifies both release files with the configured release key. The workflow log and job summary
+label those signing states explicitly.
 
 SDK, identity, version-name, version-code, branch, and artifact-location conventions are documented
 in `documentation/ANDROID_WEAR_IDENTITY_VERSIONING.md`.
@@ -84,7 +90,7 @@ Android SDK Platform Tools (`adb`), pair using the address/code shown by Wear OS
 ```bash
 adb pair WATCH_IP:PAIR_PORT
 adb connect WATCH_IP:DEBUG_PORT
-adb install -r vault-nest-wear-debug.apk
+adb install -r vault-nest-wear-debug-VERSION_NAME.apk
 ```
 
 Android Studio, a local Kotlin compiler, emulator, and local Gradle installation are not required for
