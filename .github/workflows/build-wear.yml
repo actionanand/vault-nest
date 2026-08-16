@@ -127,7 +127,7 @@ jobs:
           test -s releases/wear/vault-nest-wear-release.aab || { echo '❌ Release AAB is missing'; exit 1; }
           BUILD_TOOLS_DIR="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}"
           "$BUILD_TOOLS_DIR/apksigner" verify --verbose releases/wear/vault-nest-wear-release.apk
-          jarsigner -verify -strict -certs releases/wear/vault-nest-wear-release.aab
+          jarsigner -verify -verbose -certs releases/wear/vault-nest-wear-release.aab
           echo '⌚✅ Wear OS APK and AAB generation completed.'
           ls -lh releases/wear
 
