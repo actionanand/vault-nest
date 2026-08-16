@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [main-wear]
-    paths:
-      - 'wear/**'
-      - 'scripts/android/WatchVaultPlugin.java.template'
-      - 'scripts/prepare-wear-assets.mjs'
-      - 'src/environments/watch-vault.environment.ts'
-      - 'wear-config.json'
-      - 'android-version.json'
-      - 'wear-version.json'
-      - 'scripts/bump-wear-version.js'
-      - '.github/workflows/build-wear.yml'
+    # paths:
+    #   - 'wear/**'
+    #   - 'scripts/android/WatchVaultPlugin.java.template'
+    #   - 'scripts/prepare-wear-assets.mjs'
+    #   - 'src/environments/watch-vault.environment.ts'
+    #   - 'wear-config.json'
+    #   - 'android-version.json'
+    #   - 'wear-version.json'
+    #   - 'scripts/bump-wear-version.js'
+    #   - '.github/workflows/build-wear.yml'
 
 permissions:
   contents: write
