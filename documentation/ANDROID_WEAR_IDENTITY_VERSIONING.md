@@ -66,9 +66,13 @@ The phone workflow runs from `main-android` and commits its latest files to `rel
 branch. The Wear workflow runs from `main-wear` and commits its latest files to `releases/wear/` on
 that branch:
 
-- `vault-nest-wear-debug.apk`
-- `vault-nest-wear-release.apk`
-- `vault-nest-wear-release.aab`
+- `vault-nest-wear-debug-VERSION_NAME.apk`
+- `vault-nest-wear-release-VERSION_NAME.apk`
+- `vault-nest-wear-release-VERSION_NAME.aab`
+
+For example, version name `1.0.15-wear.1` produces
+`vault-nest-wear-release-1.0.15-wear.1.apk` and
+`vault-nest-wear-release-1.0.15-wear.1.aab`.
 
 The Wear files are also uploaded as a downloadable GitHub Actions artifact named
 `vault-nest-wear-VERSION_NAME` and retained for 30 days. The branch is not created automatically. To

@@ -32,9 +32,6 @@ jobs:
       WEAR_COMPILE_SDK_VERSION: 36
       ANDROID_BUILD_TOOLS_VERSION: 36.0.0
       VAULT_NEST_KEYSTORE_PATH: ${{ github.workspace }}/wear/release-keystore.jks
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
     steps:
       - name: ⬇️ Checkout repository
         uses: actions/checkout@v4
@@ -88,6 +85,9 @@ jobs:
       - name: 🔐 Validate and decode signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           test -n "$KEYSTORE_BASE64" || { echo '❌ Missing KEYSTORE_BASE64 secret'; exit 1; }
           test -n "$KEYSTORE_PASSWORD" || { echo '❌ Missing KEYSTORE_PASSWORD secret'; exit 1; }
@@ -109,6 +109,10 @@ jobs:
         run: gradle -p wear testDebugUnitTest --stacktrace
 
       - name: 🛠️ Build debug APK, signed release APK, and signed release AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ "${PKCS12_KEY_PASSWORD_USES_STORE_PASSWORD:-false}" = "true" ]; then
             export KEY_PASSWORD="$KEYSTORE_PASSWORD"
@@ -117,18 +121,36 @@ jobs:
 
       - name: 📦 Normalize and verify Wear artifacts
         run: |
+          DEBUG_APK="releases/wear/vault-nest-wear-debug-${WEAR_VERSION_NAME}.apk"
+          RELEASE_APK="releases/wear/vault-nest-wear-release-${WEAR_VERSION_NAME}.apk"
+          RELEASE_AAB="releases/wear/vault-nest-wear-release-${WEAR_VERSION_NAME}.aab"
           mkdir -p releases/wear
           rm -f releases/wear/*.apk releases/wear/*.aab
-          cp wear/app/build/outputs/apk/debug/app-debug.apk releases/wear/vault-nest-wear-debug.apk
-          cp wear/app/build/outputs/apk/release/app-release.apk releases/wear/vault-nest-wear-release.apk
-          cp wear/app/build/outputs/bundle/release/app-release.aab releases/wear/vault-nest-wear-release.aab
-          test -s releases/wear/vault-nest-wear-debug.apk || { echo '❌ Debug APK is missing'; exit 1; }
-          test -s releases/wear/vault-nest-wear-release.apk || { echo '❌ Release APK is missing'; exit 1; }
-          test -s releases/wear/vault-nest-wear-release.aab || { echo '❌ Release AAB is missing'; exit 1; }
+          cp wear/app/build/outputs/apk/debug/app-debug.apk "$DEBUG_APK"
+          cp wear/app/build/outputs/apk/release/app-release.apk "$RELEASE_APK"
+          cp wear/app/build/outputs/bundle/release/app-release.aab "$RELEASE_AAB"
+          test -s "$DEBUG_APK" || { echo '❌ Debug APK is missing'; exit 1; }
+          test -s "$RELEASE_APK" || { echo '❌ Release APK is missing'; exit 1; }
+          test -s "$RELEASE_AAB" || { echo '❌ Release AAB is missing'; exit 1; }
           BUILD_TOOLS_DIR="${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}"
-          "$BUILD_TOOLS_DIR/apksigner" verify --verbose releases/wear/vault-nest-wear-release.apk
-          jarsigner -verify -verbose -certs releases/wear/vault-nest-wear-release.aab
-          echo '⌚✅ Wear OS APK and AAB generation completed.'
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$DEBUG_APK"
+          "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$RELEASE_APK"
+          jarsigner -verify -verbose -certs "$RELEASE_AAB"
+          DEBUG_STATUS="🧪 SIGNED WITH DEBUG KEY: $DEBUG_APK"
+          APK_STATUS="🔐✅ SIGNED RELEASE APK: $RELEASE_APK"
+          AAB_STATUS="🔐✅ SIGNED RELEASE AAB: $RELEASE_AAB"
+          echo '⌚📦 Wear OS artifact summary'
+          echo '============================'
+          echo "$DEBUG_STATUS"
+          echo "$APK_STATUS"
+          echo "$AAB_STATUS"
+          {
+            echo '## ⌚📦 Wear OS artifact summary'
+            echo "- $DEBUG_STATUS"
+            echo "- $APK_STATUS"
+            echo "- $AAB_STATUS"
+            echo "- 🏷️ Version: $WEAR_VERSION_NAME ($WEAR_VERSION_CODE)"
+          } >> "$GITHUB_STEP_SUMMARY"
           ls -lh releases/wear
 
       - name: 📌 Commit Wear release files to main-wear
