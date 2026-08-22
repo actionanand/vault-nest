@@ -11,6 +11,7 @@ import { ClipboardService } from '../../core/services/clipboard.service';
 import { WebsiteIconService } from '../../core/services/website-icon.service';
 import { VaultItemIcon } from '../../shared/components/vault-item-icon';
 import { WatchVaultService } from '../../core/services/watch-vault.service';
+import { ActionDialog } from '../../shared/components/action-dialog';
 
 @Component({
   selector: 'app-vault-item-details',
@@ -21,6 +22,7 @@ import { WatchVaultService } from '../../core/services/watch-vault.service';
     ConfirmationDialog,
     SecretField,
     VaultItemIcon,
+    ActionDialog,
   ],
   templateUrl: './vault-item-details.html',
   styleUrl: './vault-item-details.scss',
@@ -45,6 +47,8 @@ export class VaultItemDetails {
   readonly unarchiveDialogOpen = signal(false);
   readonly shareDialogOpen = signal(false);
   readonly backupCodesDialogOpen = signal(false);
+  readonly wearSettingsDialogOpen = signal(false);
+  readonly watchLimitDialogOpen = signal(false);
   readonly shareSensitive = signal(false);
   readonly message = signal('');
   readonly refreshingIcon = signal(false);
@@ -107,20 +111,39 @@ export class VaultItemDetails {
     await this.notifications.sendCopyShortcuts(this.item());
   }
 
-  async toggleWatchVault(): Promise<void> {
+  async sendToWatch(): Promise<void> {
+    await this.watchVault.initialise();
+    if (!this.watchVault.selections.integrationEnabled()) {
+      this.wearSettingsDialogOpen.set(true);
+      return;
+    }
+    if (
+      !this.watchVault.isSelected(this.item().id) &&
+      this.watchVault.selections.entryIds().length >= this.watchVault.selections.maxEntries
+    ) {
+      this.watchLimitDialogOpen.set(true);
+      return;
+    }
     try {
-      if (this.watchVault.isSelected(this.item().id)) {
-        await this.watchVault.remove(this.item().id);
-        this.showMessage('Removed from Watch Vault');
-      } else {
-        await this.watchVault.add(this.item());
-        this.showMessage('Added to Watch Vault. Open Watch Vault to sync.');
-      }
+      const sent = await this.watchVault.send(this.item());
+      this.showMessage(
+        sent ? 'Credential sent to Watch Vault' : this.watchVault.message() || 'Watch sync pending',
+      );
     } catch (error: unknown) {
       this.showMessage(
         error instanceof Error ? error.message : 'Watch Vault could not be updated.',
       );
     }
+  }
+
+  async openWearSettings(): Promise<void> {
+    this.wearSettingsDialogOpen.set(false);
+    await this.router.navigate(['/vault/settings'], { fragment: 'wear-os' });
+  }
+
+  async openWatchCredentials(): Promise<void> {
+    this.watchLimitDialogOpen.set(false);
+    await this.router.navigateByUrl('/vault/watch');
   }
 
   async duplicate(): Promise<void> {
@@ -300,6 +323,8 @@ export class VaultItemDetails {
     this.unarchiveDialogOpen.set(false);
     this.shareDialogOpen.set(false);
     this.backupCodesDialogOpen.set(false);
+    this.wearSettingsDialogOpen.set(false);
+    this.watchLimitDialogOpen.set(false);
   }
   outsidePointerDown(event: PointerEvent): void {
     if (!this.menuOpen()) return;

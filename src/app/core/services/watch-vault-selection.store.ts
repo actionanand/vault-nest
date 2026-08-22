@@ -7,6 +7,8 @@ import { StorageEngine } from '../storage/storage-engine';
 export class WatchVaultSelectionStore {
   private readonly storage = inject(StorageEngine);
   readonly maxEntries = environment.watchVaultMaxEntries;
+  readonly integrationEnabled = signal(false);
+  readonly pinEnabled = signal(true);
   readonly entryIds = signal<readonly string[]>([]);
   readonly lastSyncedAt = signal<string | null>(null);
   readonly syncedVersions = signal<Readonly<Record<string, string>>>({});
@@ -15,6 +17,8 @@ export class WatchVaultSelectionStore {
   async load(): Promise<void> {
     if (this.loaded) return;
     const preferences = await this.preferences();
+    this.integrationEnabled.set(preferences.wearOsEnabled);
+    this.pinEnabled.set(preferences.wearOsPinEnabled);
     this.entryIds.set(this.unique(preferences.watchVaultEntryIds).slice(0, this.maxEntries));
     this.lastSyncedAt.set(preferences.watchVaultLastSyncedAt ?? null);
     this.syncedVersions.set(preferences.watchVaultSyncedVersions ?? {});
@@ -23,6 +27,19 @@ export class WatchVaultSelectionStore {
 
   contains(entryId: string): boolean {
     return this.entryIds().includes(entryId);
+  }
+
+  async setIntegrationEnabled(enabled: boolean): Promise<void> {
+    await this.load();
+    this.integrationEnabled.set(enabled);
+    await this.persist();
+  }
+
+  async setPinEnabled(enabled: boolean): Promise<void> {
+    await this.load();
+    if (this.pinEnabled() === enabled) return;
+    this.pinEnabled.set(enabled);
+    await this.markSyncRequired();
   }
 
   async add(entryId: string): Promise<void> {
@@ -92,6 +109,8 @@ export class WatchVaultSelectionStore {
     const preferences = await this.preferences();
     await this.storage.savePreferences({
       ...preferences,
+      wearOsEnabled: this.integrationEnabled(),
+      wearOsPinEnabled: this.pinEnabled(),
       watchVaultEntryIds: this.entryIds(),
       watchVaultLastSyncedAt: this.lastSyncedAt() ?? undefined,
       watchVaultSyncedVersions: this.syncedVersions(),

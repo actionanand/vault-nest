@@ -5,12 +5,10 @@
         <app-icon name="notify_copy" /><span>Send to notifications</span>
       </button>
     }
-    @if (!item().deletedAt && !item().archived) {
-      <button type="button" class="action-button" (click)="toggleWatchVault()">
+    @if (!item().deletedAt && !item().archived && watchVault.isAndroid()) {
+      <button type="button" class="action-button" (click)="sendToWatch()">
         <app-icon name="watch" />
-        <span>{{
-          watchVault.isSelected(item().id) ? 'Remove from Watch Vault' : 'Add to Watch Vault'
-        }}</span>
+        <span>{{ watchVault.isSelected(item().id) ? 'Update Watch' : 'Send to Watch' }}</span>
       </button>
     }
     <button type="button" class="action-button" (click)="openLabels()">
@@ -166,6 +164,34 @@
     <app-icon name="edit" /><span>Edit item</span>
   </a>
 </article>
+
+<app-action-dialog
+  [open]="wearSettingsDialogOpen()"
+  dialogId="enable-wear-os-integration"
+  title="Wear OS integration is disabled"
+  message="Enable Wear OS integration in Settings. You can also choose whether the watch must require a locally created PIN before showing credentials."
+  confirmLabel="OK"
+  cancelLabel="Cancel"
+  iconName="watch"
+  (cancelled)="wearSettingsDialogOpen.set(false)"
+  (confirmed)="openWearSettings()"
+/>
+
+<app-action-dialog
+  [open]="watchLimitDialogOpen()"
+  dialogId="watch-vault-limit-reached"
+  title="Watch Vault is full"
+  [message]="
+    'The maximum of ' +
+    watchVault.selections.maxEntries +
+    ' credentials has already been selected. Remove a credential from Watch Vault before sending another.'
+  "
+  confirmLabel="OK"
+  cancelLabel="Cancel"
+  iconName="watch"
+  (cancelled)="watchLimitDialogOpen.set(false)"
+  (confirmed)="openWatchCredentials()"
+/>
 
 @if (backupCodesDialogOpen()) {
   <div class="dialog-backdrop" role="presentation">

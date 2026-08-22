@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import type { VaultItem } from '../../core/models/vault.models';
 import { WatchVaultService } from '../../core/services/watch-vault.service';
 import { AppIcon } from '../../shared/components/app-icon';
@@ -8,7 +9,7 @@ import { ConfirmationDialog } from '../../shared/components/confirmation-dialog'
 
 @Component({
   selector: 'app-watch-vault',
-  imports: [DatePipe, FormsModule, AppIcon, ConfirmationDialog],
+  imports: [DatePipe, FormsModule, RouterLink, AppIcon, ConfirmationDialog],
   templateUrl: './watch-vault.html',
   styleUrl: './watch-vault.scss',
   host: { '(document:keydown.escape)': 'closeOverlays()' },
@@ -47,11 +48,19 @@ export class WatchVault implements OnInit {
   }
 
   async remove(item: VaultItem): Promise<void> {
-    await this.watchVault.remove(item.id);
-    this.localMessage.set(`${item.title} removed from Watch Vault.`);
+    const synced = await this.watchVault.remove(item.id);
+    this.localMessage.set(
+      synced
+        ? `${item.title} was removed from the phone selection and synchronized to the watch.`
+        : `${item.title} was removed locally. ${this.watchVault.message()}`,
+    );
   }
 
   openSelector(): void {
+    if (!this.watchVault.selections.integrationEnabled()) {
+      this.localMessage.set('Enable Wear OS integration in Settings before adding credentials.');
+      return;
+    }
     if (this.watchVault.selections.entryIds().length >= this.watchVault.selections.maxEntries) {
       this.localMessage.set('Watch Vault is full. Remove one password before adding another.');
       return;

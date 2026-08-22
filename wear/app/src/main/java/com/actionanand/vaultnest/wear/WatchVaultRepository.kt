@@ -1,6 +1,7 @@
 package com.actionanand.vaultnest.wear
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -58,6 +59,34 @@ class WatchVaultRepository(private val context: Context) {
     }
 
     fun hasPin(): Boolean = preferences.contains(PIN_HASH)
+
+    fun integrationConfigured(): Boolean = preferences.contains(PIN_REQUIRED)
+
+    fun pinRequired(): Boolean = preferences.getBoolean(PIN_REQUIRED, true)
+
+    fun configureInitialPinRequirement(required: Boolean) {
+        if (!integrationConfigured()) setPinRequired(required)
+    }
+
+    fun setPinRequired(required: Boolean) {
+        val editor = preferences.edit().putBoolean(PIN_REQUIRED, required)
+        if (!required) {
+            editor
+                .remove(PIN_SALT)
+                .remove(PIN_HASH)
+                .putInt(PIN_FAILURES, 0)
+                .remove(PIN_LOCK_UNTIL)
+        }
+        editor.apply()
+    }
+
+    fun registerChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        preferences.unregisterOnSharedPreferenceChangeListener(listener)
+    }
 
     fun setupPin(pin: String) {
         require(pin.matches(Regex("\\d{4,6}"))) { "PIN must contain 4 to 6 digits" }
@@ -232,6 +261,7 @@ class WatchVaultRepository(private val context: Context) {
         private const val PIN_HASH = "pin_hash"
         private const val PIN_FAILURES = "pin_failures"
         private const val PIN_LOCK_UNTIL = "pin_lock_until"
+        private const val PIN_REQUIRED = "pin_required"
         private const val PAIR_PUBLIC = "pair_public"
         private const val PAIR_PRIVATE = "pair_private"
         private const val PHONE_KEY_PREFIX = "phone_key_"

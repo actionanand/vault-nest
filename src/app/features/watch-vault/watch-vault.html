@@ -23,13 +23,29 @@
     }
   </section>
 
+  @if (!watchVault.selections.integrationEnabled()) {
+    <section class="integration-disabled" aria-labelledby="wear-integration-disabled-title">
+      <app-icon name="watch" />
+      <div>
+        <strong id="wear-integration-disabled-title">Wear OS integration is off</strong>
+        <p>Enable it in Settings before sending new credentials to the watch.</p>
+      </div>
+      <a class="secondary-button" routerLink="/vault/settings" fragment="wear-os">Settings</a>
+    </section>
+  }
+
   <section class="selected-card" aria-labelledby="selected-watch-passwords">
     <div class="section-heading">
       <div>
         <p class="eyebrow">Offline on watch</p>
         <h2 id="selected-watch-passwords">Selected entries</h2>
       </div>
-      <button class="secondary-button compact" type="button" (click)="openSelector()">
+      <button
+        class="secondary-button compact"
+        type="button"
+        [disabled]="!watchVault.selections.integrationEnabled()"
+        (click)="openSelector()"
+      >
         <app-icon name="plus" />Add password
       </button>
     </div>
@@ -109,7 +125,11 @@
       <button
         class="primary-button"
         type="button"
-        [disabled]="watchVault.busy() || !watchVault.selectedItems().length"
+        [disabled]="
+          watchVault.busy() ||
+          !watchVault.selectedItems().length ||
+          !watchVault.selections.integrationEnabled()
+        "
         (click)="watchVault.sync()"
       >
         <app-icon name="watch" />{{ watchVault.busy() ? 'Working…' : 'Sync to Watch' }}

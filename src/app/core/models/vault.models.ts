@@ -91,6 +91,8 @@ export interface VaultPreferences {
   readonly easyUnlockMode: EasyUnlockMode;
   readonly biometricEnabled: boolean;
   readonly intrusionEvidenceEnabled: boolean;
+  readonly wearOsEnabled: boolean;
+  readonly wearOsPinEnabled: boolean;
   readonly watchVaultEntryIds: readonly string[];
   readonly watchVaultLastSyncedAt?: string;
   readonly watchVaultSyncedVersions: Readonly<Record<string, string>>;
@@ -108,6 +110,8 @@ export const DEFAULT_PREFERENCES: VaultPreferences = {
   easyUnlockMode: 'DISABLED',
   biometricEnabled: false,
   intrusionEvidenceEnabled: false,
+  wearOsEnabled: false,
+  wearOsPinEnabled: true,
   watchVaultEntryIds: [],
   watchVaultSyncedVersions: {},
 };

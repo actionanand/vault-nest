@@ -167,6 +167,63 @@
       }
     </div>
   </section>
+  <section id="wear-os" tabindex="-1">
+    <h2>Wear OS</h2>
+    <div class="setting-card rows">
+      <button
+        type="button"
+        [disabled]="!watchVault.isAndroid()"
+        (click)="toggleWearOsIntegration()"
+      >
+        <span
+          ><app-icon name="watch" /><span
+            ><strong>Wear OS integration</strong
+            ><small>{{
+              watchVault.isAndroid()
+                ? 'Send selected credentials through the encrypted Watch Vault connection'
+                : 'Available only in the Android application'
+            }}</small></span
+          ></span
+        >
+        <b [class.on]="watchVault.selections.integrationEnabled()">{{
+          watchVault.selections.integrationEnabled() ? 'On' : 'Off'
+        }}</b>
+      </button>
+      <button
+        type="button"
+        [disabled]="!watchVault.isAndroid() || !watchVault.selections.integrationEnabled()"
+        (click)="toggleWearOsPin()"
+      >
+        <span
+          ><app-icon name="lock" /><span
+            ><strong>Require Watch PIN</strong
+            ><small
+              >Create a 4–6 digit PIN on the watch before credentials can be viewed</small
+            ></span
+          ></span
+        >
+        <b [class.on]="watchVault.selections.pinEnabled()">{{
+          watchVault.selections.pinEnabled() ? 'On' : 'Off'
+        }}</b>
+      </button>
+      <a class="setting-link" routerLink="/vault/watch">
+        <span
+          ><app-icon name="key" /><span
+            ><strong>Sent watch credentials</strong
+            ><small
+              >Manage {{ watchVault.selections.entryIds().length }} of
+              {{ watchVault.selections.maxEntries }} available entries</small
+            ></span
+          ></span
+        ><app-icon name="chevron_down" />
+      </a>
+    </div>
+    <p class="setting-note">
+      The PIN is created and verified only on the watch. Turning off Wear OS integration stops new
+      transfers but does not silently delete an existing watch copy; use Sent watch credentials to
+      remove or clear synchronized data.
+    </p>
+  </section>
   <section>
     <h2>Data</h2>
     <div class="setting-card rows">

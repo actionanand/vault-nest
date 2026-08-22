@@ -18,10 +18,11 @@ class WatchVaultListenerService : WearableListenerService() {
     }
 
     private fun handlePairRequest(repository: WatchVaultRepository, event: MessageEvent) {
-        if (!repository.hasPin()) return
         runCatching {
             val request = JSONObject(String(event.data, StandardCharsets.UTF_8))
             require(request.getInt("version") == WatchProtocol.VERSION)
+            repository.configureInitialPinRequirement(request.optBoolean("pinRequired", true))
+            if (repository.pinRequired() && !repository.hasPin()) return
             repository.storePhonePublicKey(
                 event.sourceNodeId,
                 Base64.decode(request.getString("publicKey"), Base64.NO_WRAP),
@@ -45,6 +46,7 @@ class WatchVaultListenerService : WearableListenerService() {
             val plaintext = repository.decryptTransport(event.path, event.sourceNodeId, event.data)
             val payload = JSONObject(String(plaintext, StandardCharsets.UTF_8))
             require(payload.getInt("version") == WatchProtocol.VERSION)
+            val pinRequired = payload.optBoolean("pinRequired", true)
             val entriesJson = payload.getJSONArray("entries")
             require(entriesJson.length() <= BuildConfig.WATCH_VAULT_MAX_ENTRIES)
             val entries = buildList {
@@ -61,6 +63,7 @@ class WatchVaultListenerService : WearableListenerService() {
                     )
                 }
             }
+            repository.setPinRequired(pinRequired)
             repository.replace(entries)
             acknowledge(event.sourceNodeId, "synced", entries.size)
         }.onFailure { acknowledge(event.sourceNodeId, "rejected", 0) }

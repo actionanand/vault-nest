@@ -15,18 +15,38 @@ oversized payloads, so changing capacity later requires editing only that enviro
 
 ## Phone workflow
 
-1. Unlock Vault Nest and open **Watch Vault** from the side navigation.
-2. Select items that contain a password. Only item IDs are persisted as phone selection state.
-3. Tap **Sync to Watch**. The current primary username and primary password are resolved from the
-   unlocked vault only at that moment.
-4. Open Vault Nest on the watch and complete Watch PIN setup before the first sync. The first sync
-   initiates secure key pairing; retry once the pairing response reaches the phone.
-5. Changed or removed selected entries display **Sync required** until the next explicit sync.
+1. Open **Settings → Wear OS** in the Android application and enable **Wear OS integration**.
+2. Choose whether **Require Watch PIN** is enabled. PIN mode is enabled by default; the 4–6 digit
+   PIN is created and verified locally on the watch and is never sent by the phone.
+3. Open a credential containing a password and tap **Send to Watch**. Vault Nest adds the item to
+   the phone selection and immediately sends the complete selected snapshot through the encrypted
+   watch transport.
+4. For the first transfer, keep Vault Nest open on the watch. If PIN mode is enabled, create the
+   Watch PIN when prompted. The phone repeats only the public-key pairing request for up to one
+   minute and sends the encrypted snapshot automatically when pairing completes.
+5. Open **Watch Vault** from the side navigation or **Sent watch credentials** in Settings to see,
+   add, remove, clear, or explicitly resynchronize the selected entries.
 
-Deleting, archiving, or converting a selected item to a template removes its Watch Vault selection.
+If integration is disabled, the credential action displays a Cancel/OK prompt; OK opens the exact
+Wear OS settings section. If the environment-controlled entry limit is full, OK opens Watch Vault
+so the owner can remove an entry. Removing an entry there immediately sends a replacement snapshot,
+including an empty snapshot after the final entry is removed. If the watch is unreachable, the
+phone removal remains saved and **Sync required** identifies the pending watch update.
+
+The current primary username and primary password are resolved from the unlocked vault only at the
+moment of synchronization. Only item IDs and synchronization metadata are persisted as phone
+selection state.
+
+Deleting, archiving, or converting a selected item to a template removes its phone Watch Vault
+selection and leaves the next synchronization marked as required.
 Clearing Watch Vault requires explicit confirmation and sends an authenticated clear message to
-connected trusted watches. Encrypted phone backups may retain the selected item IDs, but device-local
-watch sync timestamps are reset so a restored vault always requires a fresh secure sync.
+connected trusted watches. Encrypted phone backups disable Wear OS integration, reset PIN mode to
+the secure default, and omit device-local selection and synchronization state, so a restored vault
+always requires explicit setup and a fresh secure sync.
+
+Turning off Wear OS integration prevents new credential transfers but deliberately does not pretend
+to erase a disconnected watch. Use **Clear Watch Vault** while the watch is reachable, or erase the
+watch locally. The management page remains accessible while integration is off for this purpose.
 
 ## Separate GitHub Actions build
 
@@ -112,7 +132,8 @@ form-factor release in the existing Play Console application and upload the sign
 
 ## Limitations
 
-- Version 1 sync is explicit; it does not run a permanent background service or poll the watch.
+- Version 1 sync is user initiated; it does not run a permanent background service or poll the
+  watch. Send, update, and management-page removal actions initiate synchronization immediately.
 - The first secure pairing is authenticated by the OS-paired Wear Data Layer relationship. There is
   no additional human-readable pairing code in this version.
 - Only the first password and first username/email field from each selected item are included.

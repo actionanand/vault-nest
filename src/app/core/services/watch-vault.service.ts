@@ -20,7 +20,10 @@ interface WatchSyncResult {
 
 interface WatchVaultNativePlugin {
   getStatus(): Promise<WatchStatus>;
-  sync(options: { readonly entries: readonly WatchTransferEntry[] }): Promise<WatchSyncResult>;
+  sync(options: {
+    readonly entries: readonly WatchTransferEntry[];
+    readonly pinRequired: boolean;
+  }): Promise<WatchSyncResult>;
   clear(): Promise<{ readonly success: boolean; readonly nodeCount: number }>;
   reset(): Promise<{ readonly success: boolean }>;
 }
@@ -67,38 +70,75 @@ export class WatchVaultService {
   }
 
   async add(item: VaultItem): Promise<void> {
+    this.requireEnabled();
     if (!this.primaryPassword(item)) throw new Error('This item does not contain a password.');
     await this.selections.add(item.id);
   }
 
-  remove(entryId: string): Promise<void> {
-    return this.selections.remove(entryId);
+  async send(item: VaultItem): Promise<boolean> {
+    this.requireEnabled();
+    await this.add(item);
+    return this.sync();
+  }
+
+  async remove(entryId: string): Promise<boolean> {
+    await this.selections.remove(entryId);
+    if (!this.isAndroid()) return true;
+    return this.syncSelected(true);
   }
 
   isSelected(entryId: string): boolean {
     return this.selections.contains(entryId);
   }
 
-  async sync(): Promise<void> {
+  async sync(): Promise<boolean> {
+    return this.syncSelected(false);
+  }
+
+  private async syncSelected(allowWhenDisabled: boolean): Promise<boolean> {
+    if (!allowWhenDisabled && !this.selections.integrationEnabled()) {
+      this.message.set('Enable Wear OS integration in Settings before synchronizing credentials.');
+      return false;
+    }
     if (!this.isAndroid()) {
       this.message.set('Watch synchronization is available in the Android app.');
-      return;
+      return false;
     }
     const entries = this.selectedItems().map((item) => this.transferEntry(item));
     if (entries.length > this.selections.maxEntries) throw new Error('Watch Vault limit exceeded.');
     this.busy.set(true);
     this.message.set('');
     try {
-      const result = await NativeWatchVault.sync({ entries });
+      const result = await NativeWatchVault.sync({
+        entries,
+        pinRequired: this.selections.pinEnabled(),
+      });
       const syncedAt = new Date().toISOString();
       await this.selections.markSynced(this.selectedItems(), syncedAt);
       this.message.set(`Watch Vault sync sent successfully: ${result.count} passwords.`);
       await this.refreshStatus();
+      return true;
     } catch (error: unknown) {
       this.message.set(error instanceof Error ? error.message : 'Unable to sync Watch Vault.');
+      return false;
     } finally {
       this.busy.set(false);
     }
+  }
+
+  async setIntegrationEnabled(enabled: boolean): Promise<void> {
+    await this.selections.setIntegrationEnabled(enabled);
+    this.message.set(
+      enabled
+        ? 'Wear OS integration enabled.'
+        : 'Wear OS integration disabled. Existing watch copies remain until you clear Watch Vault.',
+    );
+  }
+
+  async setPinEnabled(enabled: boolean): Promise<boolean> {
+    await this.selections.setPinEnabled(enabled);
+    if (!this.selections.integrationEnabled() || !this.isAndroid()) return true;
+    return this.sync();
   }
 
   async clearWatch(): Promise<void> {
@@ -152,7 +192,13 @@ export class WatchVaultService {
     return item.fields.find((field) => field.type === 'PASSWORD' && field.value)?.value ?? '';
   }
 
-  private isAndroid(): boolean {
+  isAndroid(): boolean {
     return Capacitor.getPlatform() === 'android';
+  }
+
+  private requireEnabled(): void {
+    if (!this.selections.integrationEnabled()) {
+      throw new Error('Wear OS integration is disabled. Enable it in Settings first.');
+    }
   }
 }
