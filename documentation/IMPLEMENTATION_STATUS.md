@@ -27,9 +27,10 @@ This document distinguishes shipped code from product requirements. A visible pl
 - Optional first-four/last-four easy login and Android Keystore-backed strong-biometric unlock, both with the full master password as fallback.
 - Compact gzip-before-encryption backups, safe-area mobile navigation, theme-aware Android system bars, branded native splash resources, padded launcher icons, optional Android screenshot blocking, and monochrome notification icons.
 - Android Capacitor configuration and signed/unsigned CI artifact workflow using the brand image.
-- Environment-limited Watch Vault selection, native encrypted Wear Data Layer bridge, independent
-  Kotlin Wear OS companion with PIN-gated offline access, and a separate signed `main-wear` CI
-  workflow with independent automatic versioning.
+- Opt-in, environment-limited Watch Vault selection; credential-detail send/update action; full-limit
+  routing; immediate management-page removal synchronization; native encrypted Wear Data Layer
+  bridge; independent Kotlin Wear OS companion with optional local PIN-gated offline access; and a
+  separate signed `main-wear` CI workflow with independent automatic versioning.
 
 ## Next implementation slice
 

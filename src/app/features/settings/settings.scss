@@ -71,7 +71,8 @@ header > p:last-child {
 .theme-options small {
   font-size: 0.62rem;
 }
-.rows > button {
+.rows > button,
+.rows > .setting-link {
   display: flex;
   width: 100%;
   min-height: 4.5rem;
@@ -85,26 +86,32 @@ header > p:last-child {
   color: var(--text);
   font: inherit;
   text-align: left;
+  text-decoration: none;
 }
-.rows > button:last-child {
+.rows > button:last-child,
+.rows > .setting-link:last-child {
   border: 0;
 }
-.rows > button:hover {
+.rows > button:hover,
+.rows > .setting-link:hover {
   background: var(--surface-subtle);
 }
 .rows > button.destructive-row,
 .rows > button.destructive-row > span > app-icon {
   color: var(--danger);
 }
-.rows > button > span {
+.rows > button > span,
+.rows > .setting-link > span {
   display: flex;
   align-items: center;
   gap: 0.8rem;
 }
-.rows > button > span > app-icon {
+.rows > button > span > app-icon,
+.rows > .setting-link > span > app-icon {
   color: var(--accent-strong);
 }
-.rows > button > span > span {
+.rows > button > span > span,
+.rows > .setting-link > span > span {
   display: grid;
   gap: 0.2rem;
 }
@@ -126,6 +133,17 @@ header > p:last-child {
 .rows b.on {
   background: var(--accent-soft);
   color: var(--accent-strong);
+}
+.rows > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+#wear-os:focus {
+  outline: none;
+}
+#wear-os:focus-visible .setting-card {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
 }
 .attempt-setting {
   margin-top: 0.75rem;

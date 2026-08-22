@@ -2,6 +2,8 @@ package __PACKAGE__;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -47,6 +49,7 @@ import javax.crypto.spec.SecretKeySpec;
 public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMessageReceivedListener {
   private static final int PROTOCOL_VERSION = 1;
   private static final int MAX_ENTRIES = __MAX_ENTRIES__;
+  private static final int PAIRING_WAIT_ATTEMPTS = 60;
   private static final String PATH_PAIR_REQUEST = "/vaultnest/watch/pair/request";
   private static final String PATH_PAIR_KEY = "/vaultnest/watch/pair/public-key";
   private static final String PATH_SYNC = "/vaultnest/watch/sync";
@@ -101,13 +104,16 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
   @PluginMethod
   public void sync(PluginCall call) {
     JSArray entries = call.getArray("entries", new JSArray());
+    boolean pinRequired = Boolean.TRUE.equals(call.getBoolean("pinRequired", true));
     if (entries.length() > MAX_ENTRIES) {
       call.reject("Maximum " + MAX_ENTRIES + " Watch Vault passwords.");
       return;
     }
     Wearable.getCapabilityClient(getContext())
       .getCapability(CAPABILITY_WATCH_VAULT, CapabilityClient.FILTER_REACHABLE)
-      .addOnSuccessListener(capability -> sendSync(call, new ArrayList<>(capability.getNodes()), entries))
+      .addOnSuccessListener(capability -> sendSync(
+        call, new ArrayList<>(capability.getNodes()), entries, pinRequired
+      ))
       .addOnFailureListener(error -> call.reject("Unable to find a connected Wear OS device."));
   }
 
@@ -144,7 +150,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
     }
   }
 
-  private void sendSync(PluginCall call, List<Node> nodes, JSArray entries) {
+  private void sendSync(PluginCall call, List<Node> nodes, JSArray entries, boolean pinRequired) {
     if (nodes.isEmpty()) {
       call.reject("No Wear OS device is connected.");
       return;
@@ -153,6 +159,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
       JSONObject payload = new JSONObject();
       payload.put("version", PROTOCOL_VERSION);
       payload.put("timestamp", System.currentTimeMillis());
+      payload.put("pinRequired", pinRequired);
       payload.put("entries", new JSONArray(entries.toString()));
       sendEncryptedOperation(call, nodes, PATH_SYNC, payload);
     } catch (Exception error) {
@@ -172,7 +179,11 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
       for (Node node : nodes) {
         PublicKey peer = peerKey(node.getId());
         if (peer == null) {
-          sendPairRequest(node, phoneKeys.getPublic());
+          sendPairRequest(
+            node,
+            phoneKeys.getPublic(),
+            payload.optBoolean("pinRequired", true)
+          );
           continue;
         }
         byte[] encrypted = encrypt(path, payload.toString().getBytes(StandardCharsets.UTF_8), phoneKeys, peer);
@@ -180,7 +191,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
         pairedNodes++;
       }
       if (pairedNodes == 0) {
-        call.reject("Secure pairing started. Keep Vault Nest open on the watch, then retry sync.");
+        waitForPairing(call, nodes, path, payload, phoneKeys, PAIRING_WAIT_ATTEMPTS);
         return;
       }
       final int sentNodes = pairedNodes;
@@ -201,9 +212,44 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
     }
   }
 
-  private void sendPairRequest(Node node, PublicKey phonePublicKey) throws Exception {
+  private void waitForPairing(
+    PluginCall call,
+    List<Node> nodes,
+    String path,
+    JSONObject payload,
+    KeyPair phoneKeys,
+    int attemptsRemaining
+  ) {
+    if (attemptsRemaining <= 0) {
+      call.reject(
+        "Secure pairing timed out. Keep Vault Nest open on the watch, complete PIN setup if required, and try again."
+      );
+      return;
+    }
+    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+      try {
+        for (Node node : nodes) {
+          if (peerKey(node.getId()) != null) {
+            sendEncryptedOperation(call, nodes, path, payload);
+            return;
+          }
+          sendPairRequest(
+            node,
+            phoneKeys.getPublic(),
+            payload.optBoolean("pinRequired", true)
+          );
+        }
+        waitForPairing(call, nodes, path, payload, phoneKeys, attemptsRemaining - 1);
+      } catch (Exception error) {
+        call.reject("Secure watch pairing could not be completed.");
+      }
+    }, 1000L);
+  }
+
+  private void sendPairRequest(Node node, PublicKey phonePublicKey, boolean pinRequired) throws Exception {
     JSONObject request = new JSONObject();
     request.put("version", PROTOCOL_VERSION);
+    request.put("pinRequired", pinRequired);
     request.put("publicKey", Base64.encodeToString(phonePublicKey.getEncoded(), Base64.NO_WRAP));
     Wearable.getMessageClient(getContext()).sendMessage(
       node.getId(), PATH_PAIR_REQUEST, request.toString().getBytes(StandardCharsets.UTF_8)

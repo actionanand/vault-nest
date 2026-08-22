@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,27 +48,65 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     private lateinit var repository: WatchVaultRepository
     private var locked by mutableStateOf(true)
+    private var repositoryRevision by mutableStateOf(0)
+    private val repositoryListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        repositoryRevision++
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         repository = WatchVaultRepository(applicationContext)
         setContent {
-            VaultNestWearTheme {
-                if (!repository.hasPin()) {
-                    PinSetupScreen(repository) { locked = false }
-                } else if (locked) {
-                    PinUnlockScreen(repository) { locked = false }
-                } else {
-                    VaultScreen(repository) { locked = true }
+            key(repositoryRevision) {
+                VaultNestWearTheme {
+                    if (!repository.integrationConfigured()) {
+                        WaitingForPhoneScreen()
+                    } else if (repository.pinRequired() && !repository.hasPin()) {
+                        PinSetupScreen(repository) { locked = false }
+                    } else if (repository.pinRequired() && locked) {
+                        PinUnlockScreen(repository) { locked = false }
+                    } else {
+                        VaultScreen(repository) { locked = true }
+                    }
                 }
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        repositoryRevision++
+    }
+
+    override fun onStart() {
+        super.onStart()
+        repository.registerChangeListener(repositoryListener)
+    }
+
     override fun onStop() {
+        repository.unregisterChangeListener(repositoryListener)
         locked = true
         super.onStop()
+    }
+}
+
+@Composable
+private fun WaitingForPhoneScreen() {
+    Scaffold(timeText = { TimeText() }) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            item { Text("Vault Nest", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            item {
+                Text(
+                    "Enable Wear OS integration on the phone, then send a credential.",
+                    textAlign = TextAlign.Center,
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 }
 
@@ -213,8 +253,10 @@ private fun VaultScreen(repository: WatchVaultRepository, onLock: () -> Unit) {
                     label = { Text("Refresh synced items") },
                 )
             }
-            item {
-                Chip(modifier = Modifier.fillMaxWidth(), onClick = onLock, label = { Text("Lock") })
+            if (repository.pinRequired()) {
+                item {
+                    Chip(modifier = Modifier.fillMaxWidth(), onClick = onLock, label = { Text("Lock") })
+                }
             }
             item {
                 Chip(

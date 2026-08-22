@@ -1,4 +1,6 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { AppTheme, EasyUnlockMode, VaultPreferences } from '../../core/models/vault.models';
 import { DEFAULT_PREFERENCES } from '../../core/models/vault.models';
 import { StorageEngine } from '../../core/storage/storage-engine';
@@ -15,15 +17,18 @@ import { IntrusionEvidenceService } from '../../core/services/intrusion-evidence
 import { ScreenshotProtectionService } from '../../core/services/screenshot-protection.service';
 import { CsvExportService } from '../../core/services/csv-export.service';
 import { SelectPicker, type SelectPickerOption } from '../../shared/components/select-picker';
+import { WatchVaultService } from '../../core/services/watch-vault.service';
 
 @Component({
   selector: 'app-settings',
-  imports: [AppIcon, ConfirmationDialog, SelectPicker],
+  imports: [RouterLink, AppIcon, ConfirmationDialog, SelectPicker],
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })
 export class Settings implements OnInit {
   private readonly storage = inject(StorageEngine);
+  private readonly document = inject(DOCUMENT);
+  private readonly route = inject(ActivatedRoute);
   private readonly vault = inject(VaultStore);
   private readonly credentialNotifications = inject(CredentialNotificationService);
   private readonly expiryReminders = inject(ExpiryReminderService);
@@ -31,6 +36,7 @@ export class Settings implements OnInit {
   private readonly csvExport = inject(CsvExportService);
   private readonly clipboard = inject(ClipboardService);
   private readonly screenshotProtection = inject(ScreenshotProtectionService);
+  readonly watchVault = inject(WatchVaultService);
   readonly auth = inject(AuthStore);
   readonly intrusionEvidence = inject(IntrusionEvidenceService);
   readonly themeService = inject(ThemeService);
@@ -119,6 +125,14 @@ export class Settings implements OnInit {
     this.preferences.set(preferences);
     this.attemptSelectValue.set(preferences.maxUnlockAttempts?.toString() ?? 'unlimited');
     this.retentionSelectValue.set(preferences.trashRetentionDays.toString());
+    await this.watchVault.initialise();
+    if (this.route.snapshot.fragment === 'wear-os') {
+      globalThis.setTimeout(() => {
+        const section = this.document.getElementById('wear-os');
+        section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        section?.focus({ preventScroll: true });
+      });
+    }
   }
   async setTheme(theme: AppTheme): Promise<void> {
     await this.themeService.setTheme(theme);
@@ -340,6 +354,26 @@ export class Settings implements OnInit {
     } finally {
       this.securityBusy.set(false);
     }
+  }
+  async toggleWearOsIntegration(): Promise<void> {
+    if (!this.watchVault.isAndroid()) return;
+    const enabled = !this.watchVault.selections.integrationEnabled();
+    await this.watchVault.setIntegrationEnabled(enabled);
+    this.preferences.update((value) => ({ ...value, wearOsEnabled: enabled }));
+    this.message.set(this.watchVault.message());
+  }
+  async toggleWearOsPin(): Promise<void> {
+    if (!this.watchVault.isAndroid() || !this.watchVault.selections.integrationEnabled()) return;
+    const enabled = !this.watchVault.selections.pinEnabled();
+    const synced = await this.watchVault.setPinEnabled(enabled);
+    this.preferences.update((value) => ({ ...value, wearOsPinEnabled: enabled }));
+    this.message.set(
+      synced
+        ? enabled
+          ? 'Watch PIN requirement enabled. Create the PIN on the watch when prompted.'
+          : 'Watch PIN requirement disabled and synchronized.'
+        : `Watch PIN preference saved. ${this.watchVault.message()}`,
+    );
   }
   async openBackup(action: 'CREATE' | 'RESTORE'): Promise<void> {
     this.backupAction.set(action);

@@ -17,7 +17,11 @@ encryption:
 - each device creates a P-256 ECDH key pair;
 - private pairing keys are AES-GCM wrapped by non-exportable Android Keystore AES keys;
 - public keys are exchanged only over the paired Data Layer and pinned by node ID;
-- the watch refuses initial pairing until its local PIN setup is complete;
+- the initial pairing request establishes the first requested PIN policy, but cannot downgrade an
+  already configured PIN-protected watch; after pairing, only an authenticated encrypted sync can
+  change that policy;
+- when PIN mode is required, the watch refuses to complete initial pairing until local PIN setup is
+  complete;
 - ECDH output and ordered public keys are hashed with SHA-256 to derive a 256-bit transport key;
 - sync and clear payloads use AES-256-GCM with the protocol path/version as authenticated data;
 - unsupported versions, bad tags, corrupted ciphertext, duplicate IDs, and oversized payloads are
@@ -25,26 +29,34 @@ encryption:
 
 The phone's main vault key and master password are never sent to or copied onto the watch.
 
-## Watch storage and PIN
+## Watch storage and optional PIN
 
 The synchronized JSON file is encrypted with AES-GCM using a watch-only, non-exportable Android
 Keystore key. It is atomically replaced after complete validation. The Wear app has no INTERNET
 permission and no cloud dependency.
 
-The Watch PIN is 4–6 digits. It is not stored. Verification uses PBKDF2-HMAC-SHA256 with a random
-128-bit salt, 210,000 iterations, a 256-bit result, and constant-time comparison. Five failed attempts
-start a 30-second delay; additional failures progressively increase the delay up to one hour. The app
-does not wipe after a small number of mistakes.
+The phone setting controls whether the watch requires an application PIN. PIN mode defaults to on.
+When enabled, the Watch PIN is 4–6 digits and is created only on the watch. It is not stored or sent
+to the phone. Verification uses PBKDF2-HMAC-SHA256 with a random 128-bit salt, 210,000 iterations, a
+256-bit result, and constant-time comparison. Five failed attempts start a 30-second delay;
+additional failures progressively increase the delay up to one hour. The app does not wipe after a
+small number of mistakes.
 
 The PIN is an application access gate; encrypted storage is independently protected by Android
 Keystore and the device lock. It is not accurate to claim that the short PIN alone provides 256-bit
 security.
 
+When PIN mode is disabled, the encrypted file and transport protections remain, but opening the Wear
+application no longer presents the additional Vault Nest PIN gate. Access then depends on the watch
+device lock and operating-system security. Disabling PIN mode removes the previous local PIN hash,
+failure counter, and cooldown; enabling it again requires creation of a new PIN on the watch.
+
 ## Visibility, clipboard, and lifecycle
 
 - `FLAG_SECURE` blocks normal screenshots and recent-app previews.
 - Passwords are hidden by default and automatically hidden after ten seconds.
-- Leaving the app locks it immediately and discards reveal state.
+- Leaving the app locks it immediately and discards reveal state when PIN mode is enabled. Without
+  PIN mode, passwords remain hidden by default and reveal state is still discarded with the screen.
 - Clipboard content is marked sensitive where Wear OS supports it. Clipboard clearing is best effort,
   so users should prefer viewing and clear the clipboard through the OS when required.
 - Code never logs plaintext credentials, payloads, encryption keys, or PINs.
@@ -55,8 +67,9 @@ If the watch is lost, use the phone's **Clear Watch Vault** while it is still re
 wipe the watch through the device-management controls. A disconnected lost watch retains its encrypted
 offline vault; changing the original phone password does not remotely erase it.
 
-If the phone is lost, the watch remains usable with its Watch PIN. Reset the watch vault before pairing
-to a replacement phone.
+If the phone is lost, the watch remains usable offline; PIN-enabled watches require their Watch PIN,
+while PIN-disabled watches depend on the watch device lock. Reset the watch vault before pairing to
+a replacement phone.
 
 Local **Erase Watch Vault** deletes records, PIN state, pinned phone keys, wrapped ECDH material, and
 watch Keystore aliases. Phone-side **Reset phone-side trust** removes pinned watch keys and phone
