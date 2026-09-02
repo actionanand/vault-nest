@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { BrandMark } from '../../shared/components/brand-mark';
 import { AuthStore } from '../../core/services/auth.store';
+import { NativeNavigationService } from '../../core/services/native-navigation.service';
 
 @Component({
   selector: 'app-startup',
@@ -41,8 +42,10 @@ import { AuthStore } from '../../core/services/auth.store';
 export class Startup implements OnInit {
   private readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly nativeNavigation = inject(NativeNavigationService);
   async ngOnInit(): Promise<void> {
     await this.auth.initialise();
+    if (await this.nativeNavigation.continuePendingRoute()) return;
     await this.router.navigateByUrl(
       this.auth.status() === 'NEEDS_SETUP'
         ? '/setup'

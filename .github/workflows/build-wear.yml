@@ -105,6 +105,9 @@ jobs:
       - name: 🎨 Prepare existing Vault Nest icon
         run: node scripts/prepare-wear-assets.mjs
 
+      - name: ✅ Verify Wear OS Play quality contracts
+        run: node scripts/verify-wear-quality.mjs
+
       - name: 🧪 Run Wear OS unit tests
         run: gradle -p wear testDebugUnitTest --stacktrace
 

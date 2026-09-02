@@ -93,6 +93,18 @@ manifest = manifest.replace(
     );
   },
 );
+if (!manifest.includes('android:scheme="vaultnest"')) {
+  manifest = manifest.replace(
+    /(<activity\b(?=[^>]*android:name="\.MainActivity")[\s\S]*?)(<\/activity>)/,
+    `$1            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vaultnest" android:host="wear-os" />
+            </intent-filter>
+        $2`,
+  );
+}
 manifest = manifest.replace(
   /\s*<receiver\b(?=[^>]*android:name="\.CredentialCopyReceiver")[^>]*\/>/,
   '',
@@ -232,11 +244,13 @@ public class MainActivity extends BridgeActivity {
   private long launchOverlayShownAt;
   private Runnable clipboardClearTask;
   private Runnable notificationCleanupTask;
+  private boolean pendingWearSettingsNavigation;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(WatchVaultPlugin.class);
     super.onCreate(savedInstanceState);
+    captureWearSettingsIntent(getIntent());
     showLaunchOverlay();
     getBridge().getWebView().addJavascriptInterface(new VaultNestNativeBridge(), "VaultNestNative");
     getBridge().getWebView().addJavascriptInterface(new SystemBarsBridge(), "VaultNestSystemBars");
@@ -245,12 +259,41 @@ public class MainActivity extends BridgeActivity {
     getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#0E1713")));
     getBridge().getWebView().setBackgroundColor(Color.parseColor(darkMode ? "#0E1713" : "#F4F6F4"));
     applyLaunchBarStyle();
+    scheduleWearSettingsNavigation();
+  }
+
+  @Override
+  protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    captureWearSettingsIntent(intent);
+    scheduleWearSettingsNavigation();
   }
 
   @Override
   public void onResume() {
     super.onResume();
     if (launchOverlay == null) applySystemBars(darkMode);
+    scheduleWearSettingsNavigation();
+  }
+
+  private void captureWearSettingsIntent(Intent intent) {
+    Uri data = intent == null ? null : intent.getData();
+    pendingWearSettingsNavigation = data != null
+      && "vaultnest".equals(data.getScheme())
+      && "wear-os".equals(data.getHost());
+  }
+
+  private void scheduleWearSettingsNavigation() {
+    if (!pendingWearSettingsNavigation) return;
+    mainHandler.postDelayed(() -> {
+      if (!pendingWearSettingsNavigation || getBridge() == null || getBridge().getWebView() == null) return;
+      pendingWearSettingsNavigation = false;
+      getBridge().getWebView().evaluateJavascript(
+        "try{sessionStorage.setItem('vault-nest-native-route','wear-os');window.dispatchEvent(new Event('vault-nest-open-wear-settings'));}catch(e){}",
+        null
+      );
+    }, 1500);
   }
 
   @Override
