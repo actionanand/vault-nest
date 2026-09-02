@@ -476,7 +476,7 @@ private fun VaultScreen(
                                 }
                                 resetBusy = false
                                 reset.fold(
-                                    onSuccess = onLock,
+                                    onSuccess = { onLock() },
                                     onFailure = {
                                         confirmReset = false
                                         message = "Watch Vault could not be erased. Try again."
