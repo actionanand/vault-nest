@@ -14,6 +14,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 import { AuthStore } from '../../core/services/auth.store';
 import { CredentialNotificationService } from '../../core/services/credential-notification.service';
+import { NativeNavigationService } from '../../core/services/native-navigation.service';
 import { AppIcon } from '../../shared/components/app-icon';
 import { BrandMark } from '../../shared/components/brand-mark';
 
@@ -91,6 +92,7 @@ import { BrandMark } from '../../shared/components/brand-mark';
 export class Unlock implements OnDestroy {
   readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly nativeNavigation = inject(NativeNavigationService);
   private readonly credentialNotifications = inject(CredentialNotificationService);
   readonly visible = signal(false);
   readonly busy = signal(false);
@@ -178,6 +180,7 @@ export class Unlock implements OnDestroy {
       this.unlocked.emit();
       return;
     }
+    if (await this.nativeNavigation.continuePendingRoute()) return;
     await this.router.navigateByUrl('/vault');
   }
 

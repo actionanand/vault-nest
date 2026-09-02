@@ -7,4 +7,10 @@
         <item name="android:statusBarColor">@color/wear_background</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="Theme.VaultNestWear.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/vault_nest_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.VaultNestWear</item>
+    </style>
 </resources>

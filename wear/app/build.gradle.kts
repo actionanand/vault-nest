@@ -88,6 +88,8 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.03.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("androidx.core:core-splashscreen:1.2.0")
+    implementation("androidx.wear:wear-remote-interactions:1.2.0")
     implementation("androidx.wear.compose:compose-foundation:1.4.1")
     implementation("androidx.wear.compose:compose-material:1.4.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

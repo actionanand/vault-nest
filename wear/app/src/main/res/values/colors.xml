@@ -1,4 +1,4 @@
 <resources>
-    <color name="wear_background">#0E1713</color>
-    <color name="wear_launcher_background">#111B21</color>
+    <color name="wear_background">#000000</color>
+    <color name="wear_launcher_background">#000000</color>
 </resources>
