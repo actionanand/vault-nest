@@ -15,9 +15,13 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.android.gms.wearable.CapabilityClient;
+import com.google.android.gms.wearable.DataClient;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.MessageClient;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
 import org.json.JSONArray;
@@ -46,7 +50,9 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 @CapacitorPlugin(name = "WatchVault")
-public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMessageReceivedListener {
+public final class WatchVaultPlugin extends Plugin implements
+  MessageClient.OnMessageReceivedListener,
+  DataClient.OnDataChangedListener {
   private static final int PROTOCOL_VERSION = 1;
   private static final int MAX_ENTRIES = __MAX_ENTRIES__;
   private static final int PAIRING_WAIT_ATTEMPTS = 60;
@@ -66,6 +72,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
   public void load() {
     try {
       Wearable.getMessageClient(getContext()).addListener(this);
+      Wearable.getDataClient(getContext()).addListener(this);
     } catch (Exception ignored) {
       // The phone app remains usable when Google Play Services Wearable APIs are unavailable.
     }
@@ -75,6 +82,7 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
   protected void handleOnDestroy() {
     try {
       Wearable.getMessageClient(getContext()).removeListener(this);
+      Wearable.getDataClient(getContext()).removeListener(this);
     } catch (Exception ignored) {
       // Nothing was registered when Wearable APIs were unavailable.
     }
@@ -250,24 +258,43 @@ public final class WatchVaultPlugin extends Plugin implements MessageClient.OnMe
     JSONObject request = new JSONObject();
     request.put("version", PROTOCOL_VERSION);
     request.put("pinRequired", pinRequired);
+    request.put("timestamp", System.currentTimeMillis());
     request.put("publicKey", Base64.encodeToString(phonePublicKey.getEncoded(), Base64.NO_WRAP));
-    Wearable.getMessageClient(getContext()).sendMessage(
-      node.getId(), PATH_PAIR_REQUEST, request.toString().getBytes(StandardCharsets.UTF_8)
+    byte[] payload = request.toString().getBytes(StandardCharsets.UTF_8);
+    Wearable.getDataClient(getContext()).putDataItem(
+      PutDataRequest.create(PATH_PAIR_REQUEST).setData(payload).setUrgent()
     );
+    Wearable.getMessageClient(getContext()).sendMessage(node.getId(), PATH_PAIR_REQUEST, payload);
   }
 
   @Override
   public void onMessageReceived(MessageEvent event) {
+    handlePeerMessage(event.getPath(), event.getSourceNodeId(), event.getData());
+  }
+
+  @Override
+  public void onDataChanged(DataEventBuffer events) {
+    for (DataEvent event : events) {
+      if (event.getType() != DataEvent.TYPE_CHANGED) continue;
+      String path = event.getDataItem().getUri().getPath();
+      String sourceNodeId = event.getDataItem().getUri().getHost();
+      byte[] data = event.getDataItem().getData();
+      if (path == null || sourceNodeId == null || data == null) continue;
+      handlePeerMessage(path, sourceNodeId, data);
+    }
+  }
+
+  private void handlePeerMessage(String path, String sourceNodeId, byte[] data) {
     try {
-      if (PATH_PAIR_KEY.equals(event.getPath())) {
-        JSONObject response = new JSONObject(new String(event.getData(), StandardCharsets.UTF_8));
+      if (PATH_PAIR_KEY.equals(path)) {
+        JSONObject response = new JSONObject(new String(data, StandardCharsets.UTF_8));
         if (response.optInt("version", -1) != PROTOCOL_VERSION) return;
         byte[] encoded = Base64.decode(response.getString("publicKey"), Base64.NO_WRAP);
         PublicKey key = KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(encoded));
-        preferences().edit().putString(PEER_PREFIX + event.getSourceNodeId(),
+        preferences().edit().putString(PEER_PREFIX + sourceNodeId,
           Base64.encodeToString(key.getEncoded(), Base64.NO_WRAP)).apply();
-      } else if (PATH_ACK.equals(event.getPath())) {
-        JSONObject ack = new JSONObject(new String(event.getData(), StandardCharsets.UTF_8));
+      } else if (PATH_ACK.equals(path)) {
+        JSONObject ack = new JSONObject(new String(data, StandardCharsets.UTF_8));
         if (ack.optInt("version", -1) != PROTOCOL_VERSION) return;
         preferences().edit().putString("last_ack_at", java.time.Instant.now().toString()).apply();
       }

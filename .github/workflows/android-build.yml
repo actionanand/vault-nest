@@ -96,6 +96,8 @@ jobs:
           done
       - name: Patch Android native shell
         run: node scripts/patch-android.mjs
+      - name: Verify phone and Wear companion contract
+        run: node scripts/verify-wear-quality.mjs
       - name: Clear previous Android release artifacts
         run: |
           mkdir -p releases

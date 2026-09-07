@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
 private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
     val context = LocalContext.current
     var status by remember {
-        mutableStateOf("Enable Wear OS in Vault Nest settings, then send a credential from your phone.")
+        mutableStateOf("Your vault stays empty until you choose a credential on the paired phone.")
     }
     WearScrollableScaffold {
         item {
@@ -144,6 +144,13 @@ private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
             Text(
                 status,
                 textAlign = TextAlign.Center,
+                fontSize = 12.sp,
+            )
+        }
+        item {
+            Text(
+                "1. Open phone setup\n2. Unlock Vault Nest and enable Wear OS\n3. Open a saved credential and tap the Watch button",
+                textAlign = TextAlign.Start,
                 fontSize = 12.sp,
             )
         }
@@ -173,7 +180,7 @@ private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
             Chip(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    status = "Checking for credentials sent from your phone…"
+                    status = "Checking again. Pairing also resumes automatically after the phone reconnects."
                     onRefresh()
                 },
                 label = { Text("Check again") },
