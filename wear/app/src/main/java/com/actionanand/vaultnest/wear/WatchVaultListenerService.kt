@@ -1,7 +1,10 @@
 package com.actionanand.vaultnest.wear
 
 import android.util.Base64
+import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.PutDataRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 import org.json.JSONObject
@@ -11,32 +14,56 @@ class WatchVaultListenerService : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
         val repository = WatchVaultRepository(applicationContext)
         when (event.path) {
-            WatchProtocol.PAIR_REQUEST -> handlePairRequest(repository, event)
+            WatchProtocol.PAIR_REQUEST -> handlePairRequest(repository, event.sourceNodeId, event.data)
             WatchProtocol.SYNC -> handleSync(repository, event)
             WatchProtocol.CLEAR -> handleClear(repository, event)
         }
     }
 
-    private fun handlePairRequest(repository: WatchVaultRepository, event: MessageEvent) {
+    override fun onDataChanged(events: DataEventBuffer) {
+        val repository = WatchVaultRepository(applicationContext)
+        for (event in events) {
+            if (event.type != DataEvent.TYPE_CHANGED) continue
+            val item = event.dataItem
+            val path = item.uri.path
+            val sourceNodeId = item.uri.host
+            val data = item.data
+            if (path == WatchProtocol.PAIR_REQUEST && sourceNodeId != null && data != null) {
+                handlePairRequest(repository, sourceNodeId, data)
+            }
+        }
+    }
+
+    private fun handlePairRequest(
+        repository: WatchVaultRepository,
+        sourceNodeId: String,
+        data: ByteArray,
+    ) {
         runCatching {
-            val request = JSONObject(String(event.data, StandardCharsets.UTF_8))
+            val request = JSONObject(String(data, StandardCharsets.UTF_8))
             require(request.getInt("version") == WatchProtocol.VERSION)
             repository.configureInitialPinRequirement(request.optBoolean("pinRequired", true))
-            if (repository.pinRequired() && !repository.hasPin()) return
             repository.storePhonePublicKey(
-                event.sourceNodeId,
+                sourceNodeId,
                 Base64.decode(request.getString("publicKey"), Base64.NO_WRAP),
             )
             val response = JSONObject()
                 .put("version", WatchProtocol.VERSION)
+                .put("timestamp", System.currentTimeMillis())
                 .put(
                     "publicKey",
                     Base64.encodeToString(repository.ownTransportKeyPair().public.encoded, Base64.NO_WRAP),
                 )
+            val payload = response.toString().toByteArray(StandardCharsets.UTF_8)
+            Wearable.getDataClient(this).putDataItem(
+                PutDataRequest.create(WatchProtocol.PAIR_PUBLIC_KEY)
+                    .setData(payload)
+                    .setUrgent(),
+            )
             Wearable.getMessageClient(this).sendMessage(
-                event.sourceNodeId,
+                sourceNodeId,
                 WatchProtocol.PAIR_PUBLIC_KEY,
-                response.toString().toByteArray(StandardCharsets.UTF_8),
+                payload,
             )
         }
     }

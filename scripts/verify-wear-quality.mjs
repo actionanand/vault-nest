@@ -7,6 +7,11 @@ const files = {
   styles: 'wear/app/src/main/res/values/styles.xml',
   dimensions: 'wear/app/src/main/res/values/dimens.xml',
   phonePatch: 'scripts/patch-android.mjs',
+  phoneTransport: 'scripts/android/WatchVaultPlugin.java.template',
+  phoneIdentity: 'capacitor.config.ts',
+  watchIdentity: 'wear-config.json',
+  watchTransport:
+    'wear/app/src/main/java/com/actionanand/vaultnest/wear/WatchVaultListenerService.kt',
 };
 
 const sources = Object.fromEntries(
@@ -56,6 +61,30 @@ const checks = [
   [
     'Phone build handles the Wear settings route',
     sources.phonePatch.includes('android:scheme="vaultnest"'),
+  ],
+  [
+    'Pairing requests persist across temporary disconnects',
+    sources.phoneTransport.includes('PutDataRequest.create(PATH_PAIR_REQUEST)'),
+  ],
+  [
+    'Pairing responses persist across temporary disconnects',
+    sources.watchTransport.includes('PutDataRequest.create(WatchProtocol.PAIR_PUBLIC_KEY)'),
+  ],
+  [
+    'Wear service receives persisted Data Layer changes',
+    sources.manifest.includes('com.google.android.gms.wearable.DATA_CHANGED') &&
+      sources.watchTransport.includes('override fun onDataChanged'),
+  ],
+  [
+    'Secure pairing does not wait for Watch PIN creation',
+    !sources.watchTransport.includes(
+      'if (repository.pinRequired() && !repository.hasPin()) return',
+    ),
+  ],
+  [
+    'Phone and Wear application IDs match',
+    /appId:\s*['"]com\.actionanand\.vaultnest\.app['"]/.test(sources.phoneIdentity) &&
+      /"applicationId"\s*:\s*"com\.actionanand\.vaultnest\.app"/.test(sources.watchIdentity),
   ],
 ];
 
