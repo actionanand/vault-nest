@@ -86,12 +86,13 @@ class WatchVaultListenerService : WearableListenerService() {
                             username = item.optString("username"),
                             password = item.getString("password"),
                             updatedAt = item.optString("updatedAt"),
+                            origin = WatchEntryOrigin.PHONE,
                         ),
                     )
                 }
             }
             repository.setPinRequired(pinRequired)
-            repository.replace(entries)
+            repository.replacePhoneEntries(entries)
             acknowledge(event.sourceNodeId, "synced", entries.size)
         }.onFailure { acknowledge(event.sourceNodeId, "rejected", 0) }
     }
@@ -101,7 +102,7 @@ class WatchVaultListenerService : WearableListenerService() {
             val plaintext = repository.decryptTransport(event.path, event.sourceNodeId, event.data)
             val payload = JSONObject(String(plaintext, StandardCharsets.UTF_8))
             WatchPayloadValidator.validateClear(payload.getInt("version"))
-            repository.clearEntries()
+            repository.clearPhoneEntries()
             acknowledge(event.sourceNodeId, "cleared", 0)
         }.onFailure { acknowledge(event.sourceNodeId, "rejected", 0) }
     }

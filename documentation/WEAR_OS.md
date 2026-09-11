@@ -1,217 +1,95 @@
-# Vault Nest Wear OS companion
+# Vault Nest for Wear OS
 
-Vault Nest Wear is a separate native Kotlin application under `wear/`. It is a read-only emergency
-vault for a small user-selected set of credentials. The phone remains the source of truth. After a
-successful sync, the watch can unlock and display its encrypted local copy without the phone,
-internet, or cloud services.
+Vault Nest Wear is a standalone, native Kotlin password vault under `wear/`. It works without a
+phone, account, internet connection, or cloud service. A user can create a Watch PIN, generate a
+password, store it with a preset label, reveal or copy it, and delete it entirely on the watch.
 
-## Entry limit
+The Android app remains an optional companion. It can synchronize a small user-selected set of
+credentials over the Wearable Data Layer, but a missing or disconnected phone never blocks the
+watch-only workflow.
 
-The single product setting is `WATCH_VAULT_MAX_ENTRIES` in
-`src/environments/watch-vault.environment.ts`; its default is `5`. Both Angular environments import
-it. The phone Android patch script embeds the same value in `WatchVaultPlugin.java`, and the Wear
-Gradle build reads it into `BuildConfig.WATCH_VAULT_MAX_ENTRIES`. Both native receivers reject
-oversized payloads, so changing capacity later requires editing only that environment file.
+## First launch and local workflow
 
-## Phone workflow
+1. Launch Vault Nest on the watch.
+2. Choose **Set up on this watch**.
+3. Create and confirm a 4–6 digit Watch PIN.
+4. Choose **Generate password**, preview or regenerate the 20-character password, select a label,
+   and choose **Save on watch**.
+5. Open the saved entry to reveal it for ten seconds, copy it, or delete it after confirmation.
 
-1. Open **Settings → Wear OS** in the Android application and enable **Wear OS integration**.
-2. Choose whether **Require Watch PIN** is enabled. PIN mode is enabled by default; the 4–6 digit
-   PIN is created and verified locally on the watch and is never sent by the phone.
-3. Open a credential containing a password and tap **Send to Watch**. Vault Nest adds the item to
-   the phone selection and immediately sends the complete selected snapshot through the encrypted
-   watch transport.
-4. For the first transfer, keep Vault Nest open on the watch. If PIN mode is enabled, create the
-   Watch PIN when prompted. The phone repeats only the public-key pairing request for up to one
-   minute and sends the encrypted snapshot automatically when pairing completes.
-5. Open **Watch Vault** from the side navigation or **Sent watch credentials** in Settings to see,
-   add, remove, clear, or explicitly resynchronize the selected entries.
+**Connect Android phone** is a secondary first-launch option. Its screen always retains a
+**Set up on this watch** action, so failed pairing cannot strand the user or a Play reviewer.
 
-If integration is disabled, the credential action displays a Cancel/OK prompt; OK opens the exact
-Wear OS settings section. If the environment-controlled entry limit is full, OK opens Watch Vault
-so the owner can remove an entry. Removing an entry there immediately sends a replacement snapshot,
-including an empty snapshot after the final entry is removed. If the watch is unreachable, the
-phone removal remains saved and **Sync required** identifies the pending watch update.
+## Entry limits and ownership
 
-The current primary username and primary password are resolved from the unlocked vault only at the
-moment of synchronization. Only item IDs and synchronization metadata are persisted as phone
-selection state.
+Both capacities are configured in `src/environments/watch-vault.environment.ts`:
 
-Deleting, archiving, or converting a selected item to a template removes its phone Watch Vault
-selection and leaves the next synchronization marked as required.
-Clearing Watch Vault requires explicit confirmation and sends an authenticated clear message to
-connected trusted watches. Encrypted phone backups disable Wear OS integration, reset PIN mode to
-the secure default, and omit device-local selection and synchronization state, so a restored vault
-always requires explicit setup and a fresh secure sync.
+- `WATCH_VAULT_MAX_ENTRIES` limits credentials synchronized from the phone; default `5`.
+- `WATCH_VAULT_MAX_LOCAL_ENTRIES` limits passwords created on the watch; default `5`.
 
-Turning off Wear OS integration prevents new credential transfers but deliberately does not pretend
-to erase a disconnected watch. Use **Clear Watch Vault** while the watch is reachable, or erase the
-watch locally. The management page remains accessible while integration is off for this purpose.
+Wear records carry an origin of `PHONE` or `WATCH`. Records written by older releases have no
+origin and migrate to `PHONE`. A phone synchronization replaces only `PHONE` records. Phone-side
+**Clear Watch Vault** clears only synchronized records. Watch-created records never leave the watch
+and only local deletion or **Erase Watch Vault** can remove them.
 
-## Separate GitHub Actions build
+## Optional phone synchronization
 
-Open **Actions → Build Vault Nest Wear → Run workflow**. The independent workflow is
-`.github/workflows/build-wear.yml`; it does not modify the existing phone build workflow. Pushes to
-the dedicated `main-wear` branch also run it when Wear-related files change.
+1. In the Android app, open **Settings → Wear OS** and enable integration.
+2. Open a credential containing a password and choose **Send to Watch**.
+3. Manage the phone-selected set in **Watch Vault** or **Sent watch credentials**.
 
-`android-version.json` supplies the semantic base such as `1.0.15`. `wear-version.json` keeps the
-independent Wear `versionCode` and the manually controlled `wearRevision`. The final name is composed
-at build time: Android `1.0.15` plus `wearRevision: 1` becomes `1.0.15-wear.1`.
+Phone and Wear use application ID `com.actionanand.vaultnest.app` and the same signing identity,
+which the Wearable Data Layer requires. Transport payloads are additionally encrypted. Sync is
+optional and the Wear manifest declares `com.google.android.wearable.standalone=true`.
 
-Before a new Wear release, manually increase only `wearRevision` from `1` to `2`, and so on. If the
-Android base changes, choose the desired Wear revision, normally resetting it to `1`. On `main-wear`,
-CI automatically increments only the Wear `versionCode` starting from the reserved 2000 range and
-commits that change with `[skip ci]`.
+## Build, version, and artifacts
 
-Manual builds from another branch use the current value without modifying it. This command mirrors
-CI and increments only `versionCode`; it does not change `wearRevision`:
+The independent `.github/workflows/build-wear.yml` workflow runs for `main-wear` and by manual
+dispatch. It reads the Android semantic base from `android-version.json` and Wear revision/code
+from `wear-version.json`. For example, Android `1.0.19` and Wear revision `1` produce
+`1.0.19-wear.1`. CI increments only the Wear `versionCode` on `main-wear`; the next build after
+rejected code `2008` is `2009`.
 
-```bash
-npm run wear:version
-```
+The workflow validates Play-quality contracts, runs unit tests, builds debug/release APKs and a
+release AAB, verifies signatures, and writes only to `releases/wear/`. Android and Wear workflows
+do not delete or stage each other's artifacts.
 
-It requires the same repository secrets used by the phone build:
+Required repository secrets are `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and
+`KEY_PASSWORD`.
 
-- `KEYSTORE_BASE64`
-- `KEYSTORE_PASSWORD`
-- `KEY_ALIAS`
-- `KEY_PASSWORD`
+## Play quality contract
 
-The workflow restores the keystore only for the job, prepares the existing `public/vault-nest.png`
-brand icon, verifies the static Play-quality contracts, runs Wear unit tests, builds and verifies
-signed artifacts, and commits the latest files to `main-wear/releases/wear`. It also uploads a
-versioned `vault-nest-wear-VERSION_NAME` Actions artifact containing:
+- All screens use a `ScalingLazyColumn` and visible `PositionIndicator` (`WO-V8`).
+- Activity, Compose, launcher, and splash surfaces are true black (`WO-V13`).
+- AndroidX SplashScreen displays the 48dp Vault Nest mark (`WO-V15`).
+- Controls are at least 48dp, text remains readable, and round-screen padding is shared.
+- Credential details support swipe-to-dismiss and a visible Back action.
+- PIN hashing and vault file access run off the UI thread; operational failures are recoverable.
+- The full core workflow works with the phone unavailable (`WO-P5`).
 
-- `vault-nest-wear-debug-VERSION_NAME.apk`
-- `vault-nest-wear-release-VERSION_NAME.apk`
-- `vault-nest-wear-release-VERSION_NAME.aab`
+Before release, manually validate first launch, PIN setup/unlock, generation, persistence across an
+app restart, reveal/copy/delete, scrolling, and temporary phone loss on 192dp and 227dp round Wear
+OS 3+ devices, including large fonts.
 
-For example, Android base `1.0.15` with Wear revision `1` produces
-`vault-nest-wear-release-1.0.15-wear.1.apk` and
-`vault-nest-wear-release-1.0.15-wear.1.aab`. CI verifies the debug APK with its Android debug key
-and verifies both release files with the configured release key. The workflow log and job summary
-label those signing states explicitly.
+## Play submission
 
-SDK, identity, version-name, version-code, branch, and artifact-location conventions are documented
-in `documentation/ANDROID_WEAR_IDENTITY_VERSIONING.md`.
+Replace rejected Wear version `2008` on every active internal, closed, open, and production track.
+Do not leave the rejected artifact active on another track. Suggested listing text:
 
-Phone and Wear artifacts have protected ownership boundaries. Android owns the root phone artifacts
-in `releases/`, while Wear owns only `releases/wear/`. Neither workflow cleans or stages the other
-directory, and both workflows fail before committing if that boundary is crossed.
+> Vault Nest works independently on your Wear OS watch. Create a Watch PIN, generate and securely
+> store passwords locally, or optionally synchronize selected credentials from the Vault Nest
+> Android app.
 
-## Installing without Android Studio
-
-The easiest route is Google Play internal testing: upload the release AAB as a Wear OS release, add
-your account as a tester, and install from Play Store on the watch.
-
-For direct testing, enable Developer options and wireless debugging on the watch, install only the
-Android SDK Platform Tools (`adb`), pair using the address/code shown by Wear OS, and run:
-
-```bash
-adb pair WATCH_IP:PAIR_PORT
-adb connect WATCH_IP:DEBUG_PORT
-adb install -r vault-nest-wear-debug-VERSION_NAME.apk
-```
-
-Android Studio, a local Kotlin compiler, emulator, and local Gradle installation are not required for
-the CI-produced APK.
-
-## Play compatibility
-
-The Kotlin namespace is `com.actionanand.vaultnest.wear`, while its application ID intentionally
-remains `com.actionanand.vaultnest.app`. Wearable Data Layer requires the phone and watch packages to
-share the application ID and signing certificate. The module declares the watch hardware feature,
-has a Wear launcher, targets API 36, and uses the phone signing identity. It is marked non-standalone
-for Play metadata because initial credential provisioning requires the companion phone; the watch
-remains fully usable offline after a successful sync.
-
-Wear reads its version from `wear-version.json`. Its sequence starts at `2000` to remain separate from
-the existing phone version-code range and then increments independently. Every Wear version code
-uploaded to Play must remain unique and greater than the previous Wear release. Configure a Wear OS
-form-factor release in the existing Play Console application and upload the signed AAB.
-
-### Play quality and companion-app review flow
-
-The Wear interface follows the applicable Google Play quality checks:
-
-- Every scrolling screen uses one shared `ScalingLazyColumn` scaffold with a curved
-  `PositionIndicator`, so the scroll indicator appears while the owner scrolls (`WO-V8`).
-- The activity, Compose surface, launcher background, and startup surface use true black
-  (`#000000`) (`WO-V13`).
-- Startup uses AndroidX SplashScreen with the same 48dp Vault Nest mark as the launcher on a black
-  background (`WO-V15`).
-- Essential text is at least 12sp, secondary labels are at least 10sp, numeric controls are 48dp,
-  and round-screen padding is applied through the shared scaffold (`WO-V1`, `WO-V2`, `WO-V14`,
-  `WO-V16`).
-- Credential details support the standard left-to-right swipe-to-dismiss gesture as well as a
-  visible Back action (`WO-V3`).
-- The current selected credential survives normal recomposition and brief background/foreground
-  transitions. Secret PIN input is intentionally not written into saved-instance state (`WO-V5`).
-- PIN hashing and verification run away from the Compose UI thread, with repeat taps disabled while
-  work is in progress. Vault reads/resets also use an I/O dispatcher. Missing-phone, corrupt-store,
-  clipboard, PIN, and reset failures are contained and shown as recoverable states instead of
-  terminating the Wear activity (`WO-P2`).
-
-The unconfigured screen is actionable. **Open phone setup** sends a browsable
-`vaultnest://wear-os` intent to the paired phone and the Android companion opens the exact Wear OS
-settings section after unlock. **Install or update phone app** opens the phone Play listing, and
-**Check again** re-reads the encrypted Data Layer state. This addresses the non-standalone companion
-requirement (`WO-P5`) instead of leaving the reviewer on an instruction-only screen.
-
-First-time public-key pairing is sent through both transports: `MessageClient` provides the immediate
-connected-device path, while an urgent `DataClient` item persists the pairing request and response
-across a temporary Bluetooth/Wi-Fi interruption. PIN creation no longer blocks the cryptographic
-handshake. The phone can securely deliver the selected encrypted snapshot first, after which the
-watch requires the locally created PIN before revealing it. Credentials are never placed in the
-pairing Data Item.
-
-Publish or test the updated Android companion before submitting the updated Wear artifact. The
-custom phone route is generated by `scripts/patch-android.mjs`, so an older phone build cannot handle
-the new **Open phone setup** action. The phone and Wear artifacts must continue to use the same
-application ID and release signing certificate.
-
-Before Play review, verify the complete paired-device path rather than only launching an empty Wear
-installation:
-
-1. Install the updated release-signed phone build and Wear build from the same Play test track.
-2. Open the Wear app and tap **Open phone setup**. Unlock the phone if required and confirm that
-   **Settings → Wear OS** receives focus.
-3. Enable integration, send a credential from its detail page, and confirm the watch leaves the
-   setup screen without relaunching.
-4. Scroll the credential list and detail screen and confirm the curved position indicator appears.
-5. Open a credential, swipe from left to right to return, reveal the password, and confirm it hides
-   automatically after ten seconds.
-6. Repeat on a 192dp small-round Wear OS 3+ emulator/device and a 227dp large-round emulator/device,
-   including the largest system font setting.
-7. Capture new 1:1 Play screenshots from this build. Screenshots must show only the app interface,
-   without a device frame, mask, transparency, or explanatory graphics.
-
-For every Play submission, the non-standalone review path is a release requirement:
-
-1. Put the new phone AAB and Wear AAB in the same Play release/testing track. Do not submit a new
-   Wear artifact while the track still serves an older phone companion.
-2. Confirm both delivered APKs use `com.actionanand.vaultnest.app` and Play App Signing reports the
-   same app-signing certificate. Upload-key equality alone is not sufficient.
-3. In **Policy and programs → App content → App access**, explain that the app is offline and has no
-   account. Give the reviewer these steps: create a temporary local vault on the phone, save one
-   credential containing a Password field, enable **Settings → Wear OS**, open that credential, and
-   tap the Watch action. Then create the Watch PIN and open the synchronized credential.
-4. Replace version `2007` on every active Wear track (internal, closed, open, and production) with
-   the fixed build. A rejected/noncompliant artifact left active on another track can continue to
-   block the app update.
+Give reviewers this exact path: launch → **Set up on this watch** → create PIN →
+**Generate password** → save → open → reveal/copy → delete.
 
 Official references: [Wear OS app quality](https://developer.android.com/docs/quality-guidelines/wear-app-quality),
-[Wear app surfaces and scrolling](https://developer.android.com/design/ui/wear/guides/surfaces/apps),
-[Wear splash screens](https://developer.android.com/training/wearables/apps/splash-screen), and
-[standalone versus non-standalone apps](https://developer.android.com/training/wearables/apps/standalone-apps).
+[Wear scrolling surfaces](https://developer.android.com/design/ui/wear/guides/surfaces/apps), and
+[standalone Wear apps](https://developer.android.com/training/wearables/apps/standalone-apps).
 
 ## Limitations
 
-- Version 1 sync is user initiated; it does not run a permanent background service or poll the
-  watch. Send, update, and management-page removal actions initiate synchronization immediately.
-- The first secure pairing is authenticated by the OS-paired Wear Data Layer relationship. There is
-  no additional human-readable pairing code in this version.
-- Only the first password and first username/email field from each selected item are included.
-- Clipboard behavior varies by Wear OS version; viewing is the primary emergency-access path.
-- The phone may report a send before the asynchronous acknowledgement arrives. Last acknowledgement
-  is retained by the native bridge without credential content.
+- Local creation intentionally generates passwords with preset labels; it is not a full arbitrary
+  username/password editor.
+- Version 1 phone sync is user initiated and does not poll in a permanent background service.
+- Clipboard clearing is best effort across Wear OS versions; viewing is the preferred recovery path.

@@ -12,6 +12,9 @@ const files = {
   watchIdentity: 'wear-config.json',
   watchTransport:
     'wear/app/src/main/java/com/actionanand/vaultnest/wear/WatchVaultListenerService.kt',
+  watchRepository: 'wear/app/src/main/java/com/actionanand/vaultnest/wear/WatchVaultRepository.kt',
+  watchSecurity: 'wear/app/src/main/java/com/actionanand/vaultnest/wear/ProtocolSecurity.kt',
+  watchEnvironment: 'src/environments/watch-vault.environment.ts',
 };
 
 const sources = Object.fromEntries(
@@ -26,8 +29,12 @@ const checks = [
     sources.manifest.includes('Theme.VaultNestWear.Starting'),
   ],
   [
-    'Companion dependency is declared',
-    sources.manifest.includes('standalone" android:value="false'),
+    'Wear app is declared genuinely standalone',
+    sources.manifest.includes('standalone" android:value="true'),
+  ],
+  [
+    'Standalone vault has no internet permission',
+    !sources.manifest.includes('android.permission.INTERNET'),
   ],
   ['Wear background is true black', /wear_background">#000000</i.test(sources.colors)],
   ['Launcher background is true black', /wear_launcher_background">#000000</i.test(sources.colors)],
@@ -46,6 +53,46 @@ const checks = [
     sources.activity.includes('BasicSwipeToDismissBox('),
   ],
   ['Watch can open setup on the paired phone', sources.activity.includes('RemoteActivityHelper(')],
+  [
+    'First launch offers complete watch-only setup',
+    sources.activity.includes('StandaloneOnboardingScreen(') &&
+      sources.activity.includes('Set up on this watch') &&
+      sources.activity.includes('Connect Android phone'),
+  ],
+  [
+    'Every phone setup route retains a watch-only alternative',
+    sources.activity.includes(
+      'PhoneConnectionScreen(onRefresh: () -> Unit, onSetUpOnWatch: () -> Unit)',
+    ) && sources.activity.includes('onClick = onSetUpOnWatch'),
+  ],
+  [
+    'Watch generates passwords locally with SecureRandom',
+    sources.watchSecurity.includes('object WatchPasswordGenerator') &&
+      sources.watchSecurity.includes('SecureRandom'),
+  ],
+  [
+    'Watch-only passwords use encrypted persistence and never enter phone sync',
+    sources.watchRepository.includes('fun addWatchEntry(') &&
+      sources.watchRepository.includes('encryptAtRest(') &&
+      sources.watchTransport.includes('repository.replacePhoneEntries(entries)'),
+  ],
+  [
+    'Standalone workflow supports save, reveal, copy, and confirmed local deletion',
+    sources.activity.includes('Save on watch') &&
+      sources.activity.includes('Show for 10 seconds') &&
+      sources.activity.includes('Copy password') &&
+      sources.activity.includes('Tap again to delete'),
+  ],
+  [
+    'Phone clear preserves watch-only passwords',
+    sources.watchTransport.includes('repository.clearPhoneEntries()') &&
+      sources.watchSecurity.includes('clearPhoneEntries'),
+  ],
+  [
+    'Local and synchronized limits are independently configurable',
+    /WATCH_VAULT_MAX_ENTRIES\s*=\s*\d+/.test(sources.watchEnvironment) &&
+      /WATCH_VAULT_MAX_LOCAL_ENTRIES\s*=\s*\d+/.test(sources.watchEnvironment),
+  ],
   [
     'Remote phone failures are contained',
     sources.activity.includes('runCatching {\n        RemoteActivityHelper'),

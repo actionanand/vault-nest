@@ -26,6 +26,47 @@ object WatchPayloadValidator {
     }
 }
 
+object WatchEntryCollection {
+    fun mergePhoneEntries(
+        existing: List<WatchEntry>,
+        incoming: List<WatchEntry>,
+        phoneMaximum: Int,
+        localMaximum: Int,
+    ): List<WatchEntry> {
+        val phoneEntries = incoming.map { it.copy(origin = WatchEntryOrigin.PHONE) }
+        val merged = existing.filter { it.origin == WatchEntryOrigin.WATCH } + phoneEntries
+        validateLimits(merged, phoneMaximum, localMaximum)
+        require(merged.map { it.id }.distinct().size == merged.size) { "Duplicate entry identifiers" }
+        return merged
+    }
+
+    fun clearPhoneEntries(existing: List<WatchEntry>): List<WatchEntry> =
+        existing.filter { it.origin == WatchEntryOrigin.WATCH }
+
+    fun addLocalEntry(
+        existing: List<WatchEntry>,
+        entry: WatchEntry,
+        phoneMaximum: Int,
+        localMaximum: Int,
+    ): List<WatchEntry> {
+        require(entry.origin == WatchEntryOrigin.WATCH) { "Local entry must be watch-only" }
+        require(existing.none { it.id == entry.id }) { "Duplicate entry identifier" }
+        return (existing + entry).also { validateLimits(it, phoneMaximum, localMaximum) }
+    }
+
+    fun deleteLocalEntry(existing: List<WatchEntry>, id: String): List<WatchEntry> =
+        existing.filterNot { it.id == id && it.origin == WatchEntryOrigin.WATCH }
+
+    fun validateLimits(entries: List<WatchEntry>, phoneMaximum: Int, localMaximum: Int) {
+        require(entries.count { it.origin == WatchEntryOrigin.PHONE } <= phoneMaximum) {
+            "Synced Watch Vault limit exceeded"
+        }
+        require(entries.count { it.origin == WatchEntryOrigin.WATCH } <= localMaximum) {
+            "Local Watch Vault limit exceeded"
+        }
+    }
+}
+
 object WatchEntryCodec {
     fun encode(entries: List<WatchEntry>): String {
         val array = JSONArray()
@@ -36,7 +77,8 @@ object WatchEntryCodec {
                     .put("title", entry.title)
                     .put("username", entry.username)
                     .put("password", entry.password)
-                    .put("updatedAt", entry.updatedAt),
+                    .put("updatedAt", entry.updatedAt)
+                    .put("origin", entry.origin.name),
             )
         }
         return array.toString()
@@ -54,11 +96,44 @@ object WatchEntryCodec {
                         item.optString("username"),
                         item.getString("password"),
                         item.optString("updatedAt"),
+                        if (item.has("origin")) {
+                            WatchEntryOrigin.valueOf(item.getString("origin"))
+                        } else {
+                            WatchEntryOrigin.PHONE
+                        },
                     ),
                 )
             }
         }
     }
+}
+
+object WatchPasswordGenerator {
+    private const val UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    private const val LOWER = "abcdefghijkmnopqrstuvwxyz"
+    private const val DIGITS = "23456789"
+    private const val SYMBOLS = "!@#\$%&*+-=?"
+    private const val ALL = UPPER + LOWER + DIGITS + SYMBOLS
+
+    fun generate(length: Int = 20, random: SecureRandom = SecureRandom()): String {
+        require(length >= 4) { "Password length must be at least 4" }
+        val characters = mutableListOf(
+            UPPER.randomCharacter(random),
+            LOWER.randomCharacter(random),
+            DIGITS.randomCharacter(random),
+            SYMBOLS.randomCharacter(random),
+        )
+        repeat(length - characters.size) { characters += ALL.randomCharacter(random) }
+        for (index in characters.lastIndex downTo 1) {
+            val other = random.nextInt(index + 1)
+            val value = characters[index]
+            characters[index] = characters[other]
+            characters[other] = value
+        }
+        return characters.joinToString("")
+    }
+
+    private fun String.randomCharacter(random: SecureRandom): Char = this[random.nextInt(length)]
 }
 
 object PinHasher {
