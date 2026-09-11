@@ -12,6 +12,10 @@ val limitMatcher = Pattern.compile("WATCH_VAULT_MAX_ENTRIES\\s*=\\s*(\\d+)").mat
 check(limitMatcher.find()) { "WATCH_VAULT_MAX_ENTRIES is missing from the Watch Vault environment" }
 val watchVaultMaxEntries = limitMatcher.group(1).toInt()
 check(watchVaultMaxEntries > 0) { "watchVaultMaxEntries must be positive" }
+val localLimitMatcher = Pattern.compile("WATCH_VAULT_MAX_LOCAL_ENTRIES\\s*=\\s*(\\d+)").matcher(environmentText)
+check(localLimitMatcher.find()) { "WATCH_VAULT_MAX_LOCAL_ENTRIES is missing from the Watch Vault environment" }
+val watchVaultMaxLocalEntries = localLimitMatcher.group(1).toInt()
+check(watchVaultMaxLocalEntries > 0) { "watchVaultMaxLocalEntries must be positive" }
 
 val versionFile = rootProject.file("../wear-version.json")
 val versionText = versionFile.readText()
@@ -52,6 +56,7 @@ android {
             "${jsonString(androidVersionText, "versionName")}-wear.${jsonNumber(versionText, "wearRevision")}"
         resValue("string", "wear_app_name", jsonString(identityText, "appName"))
         buildConfigField("int", "WATCH_VAULT_MAX_ENTRIES", watchVaultMaxEntries.toString())
+        buildConfigField("int", "WATCH_VAULT_MAX_LOCAL_ENTRIES", watchVaultMaxLocalEntries.toString())
     }
 
     signingConfigs {

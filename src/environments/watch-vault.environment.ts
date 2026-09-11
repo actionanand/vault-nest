@@ -1,1 +1,2 @@
 export const WATCH_VAULT_MAX_ENTRIES = 5;
+export const WATCH_VAULT_MAX_LOCAL_ENTRIES = 5;

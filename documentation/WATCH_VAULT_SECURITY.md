@@ -2,7 +2,7 @@
 
 ## Assets and threat model
 
-Watch Vault protects a deliberately small offline copy of selected usernames and passwords against
+Watch Vault protects watch-generated passwords and a deliberately small offline copy of selected usernames and passwords against
 casual access, lost-device browsing, database extraction, message tampering, and brute-force attempts
 against the in-app PIN. It does not claim to withstand a fully compromised unlocked phone/watch OS,
 root access with live Keystore use, screen observation while a password is revealed, or clipboard
@@ -20,8 +20,8 @@ encryption:
 - the initial pairing request establishes the first requested PIN policy, but cannot downgrade an
   already configured PIN-protected watch; after pairing, only an authenticated encrypted sync can
   change that policy;
-- when PIN mode is required, the watch refuses to complete initial pairing until local PIN setup is
-  complete;
+- pairing can complete before local PIN setup, so temporary disconnects cannot block key
+  establishment;
 - ECDH output and ordered public keys are hashed with SHA-256 to derive a 256-bit transport key;
 - sync and clear payloads use AES-256-GCM with the protocol path/version as authenticated data;
 - unsupported versions, bad tags, corrupted ciphertext, duplicate IDs, and oversized payloads are
@@ -31,9 +31,11 @@ The phone's main vault key and master password are never sent to or copied onto 
 
 ## Watch storage and optional PIN
 
-The synchronized JSON file is encrypted with AES-GCM using a watch-only, non-exportable Android
-Keystore key. It is atomically replaced after complete validation. The Wear app has no INTERNET
-permission and no cloud dependency.
+The combined local/synchronized JSON file is encrypted with AES-GCM using a watch-only,
+non-exportable Android Keystore key. It is atomically replaced after complete validation. Each
+record is marked `PHONE` or `WATCH`; legacy originless records migrate as `PHONE`. Phone sync and
+phone clear operations affect only `PHONE` records. `WATCH` records never leave the watch. The Wear
+app has no INTERNET permission and no cloud dependency.
 
 The phone setting controls whether the watch requires an application PIN. PIN mode defaults to on.
 When enabled, the Watch PIN is 4–6 digits and is created only on the watch. It is not stored or sent
@@ -74,3 +76,6 @@ a replacement phone.
 Local **Erase Watch Vault** deletes records, PIN state, pinned phone keys, wrapped ECDH material, and
 watch Keystore aliases. Phone-side **Reset phone-side trust** removes pinned watch keys and phone
 pairing material. A complete reset should be performed on both devices.
+
+Phone-side **Clear Watch Vault** intentionally deletes synchronized `PHONE` records only. It cannot
+erase watch-created records; those require local confirmation or **Erase Watch Vault**.

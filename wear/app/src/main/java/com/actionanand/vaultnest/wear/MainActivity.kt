@@ -64,6 +64,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: WatchVaultRepository
@@ -80,13 +82,21 @@ class MainActivity : ComponentActivity() {
         repository = WatchVaultRepository(applicationContext)
         setContent {
             val currentRevision = repositoryRevision
+            var onboardingRoute by rememberSaveable { mutableStateOf("welcome") }
             VaultNestWearTheme {
                 when {
-                    !repository.integrationConfigured() -> WaitingForPhoneScreen(
-                        onRefresh = { repositoryRevision++ },
+                    !repository.integrationConfigured() && onboardingRoute == "welcome" -> StandaloneOnboardingScreen(
+                        onSetUpOnWatch = { onboardingRoute = "local" },
+                        onConnectPhone = { onboardingRoute = "phone" },
                     )
-                    repository.pinRequired() && !repository.hasPin() -> PinSetupScreen(repository) {
+                    !repository.integrationConfigured() && onboardingRoute == "phone" -> PhoneConnectionScreen(
+                        onRefresh = { repositoryRevision++ },
+                        onSetUpOnWatch = { onboardingRoute = "local" },
+                    )
+                    (onboardingRoute == "local" && !repository.hasPin()) ||
+                        (repository.pinRequired() && !repository.hasPin()) -> PinSetupScreen(repository) {
                         locked = false
+                        onboardingRoute = "welcome"
                     }
                     repository.pinRequired() && locked -> PinUnlockScreen(repository) {
                         locked = false
@@ -119,7 +129,43 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
+private fun StandaloneOnboardingScreen(onSetUpOnWatch: () -> Unit, onConnectPhone: () -> Unit) {
+    WearScrollableScaffold {
+        item {
+            Image(
+                painter = painterResource(R.drawable.vault_nest_brand),
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+            )
+        }
+        item { Text("Vault Nest", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        item {
+            Text(
+                "Create and store passwords securely on this watch. A phone is optional.",
+                textAlign = TextAlign.Center,
+                fontSize = 12.sp,
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onSetUpOnWatch,
+                label = { Text("Set up on this watch") },
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onConnectPhone,
+                label = { Text("Connect Android phone") },
+                colors = ChipDefaults.secondaryChipColors(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhoneConnectionScreen(onRefresh: () -> Unit, onSetUpOnWatch: () -> Unit) {
     val context = LocalContext.current
     var status by remember {
         mutableStateOf("Your vault stays empty until you choose a credential on the paired phone.")
@@ -134,7 +180,7 @@ private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
         }
         item {
             Text(
-                "Finish setup on phone",
+                "Connect Android phone",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -149,7 +195,7 @@ private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
         }
         item {
             Text(
-                "1. Open phone setup\n2. Unlock Vault Nest and enable Wear OS\n3. Open a saved credential and tap the Watch button",
+                "Open Vault Nest on your paired phone and enable Wear OS. You can also use this watch without a phone.",
                 textAlign = TextAlign.Start,
                 fontSize = 12.sp,
             )
@@ -174,6 +220,13 @@ private fun WaitingForPhoneScreen(onRefresh: () -> Unit) {
                 },
                 label = { Text("Install or update phone app") },
                 colors = ChipDefaults.secondaryChipColors(),
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onSetUpOnWatch,
+                label = { Text("Set up on this watch") },
             )
         }
         item {
@@ -389,6 +442,7 @@ private fun VaultScreen(
     val scope = rememberCoroutineScope()
     var entries by remember { mutableStateOf(emptyList<WatchEntry>()) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var generatorOpen by rememberSaveable { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
     var resetBusy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -405,7 +459,57 @@ private fun VaultScreen(
 
     val selected = entries.firstOrNull { it.id == selectedId }
     if (selected != null) {
-        PasswordDetail(selected, onBack = { selectedId = null })
+        PasswordDetail(
+            entry = selected,
+            onBack = { selectedId = null },
+            onDelete = if (selected.origin == WatchEntryOrigin.WATCH) {
+                {
+                    scope.launch {
+                        val result = runCatching {
+                            withContext(Dispatchers.IO) { repository.deleteWatchEntry(selected.id) }
+                        }
+                        result.fold(
+                            onSuccess = {
+                                entries = entries.filterNot { it.id == selected.id }
+                                selectedId = null
+                                message = "Watch-only password deleted."
+                            },
+                            onFailure = { message = "Password could not be deleted." },
+                        )
+                    }
+                }
+            } else null,
+        )
+        return
+    }
+
+    if (generatorOpen) {
+        PasswordGeneratorScreen(
+            onCancel = { generatorOpen = false },
+            onSave = { label, password ->
+                scope.launch {
+                    val entry = WatchEntry(
+                        id = "watch-${UUID.randomUUID()}",
+                        title = label,
+                        username = "",
+                        password = password,
+                        updatedAt = Instant.now().toString(),
+                        origin = WatchEntryOrigin.WATCH,
+                    )
+                    val result = runCatching {
+                        withContext(Dispatchers.IO) { repository.addWatchEntry(entry) }
+                    }
+                    result.fold(
+                        onSuccess = {
+                            entries = entries + entry
+                            generatorOpen = false
+                            message = "Password saved on this watch."
+                        },
+                        onFailure = { message = "Local password limit reached." },
+                    )
+                }
+            },
+        )
         return
     }
 
@@ -413,7 +517,8 @@ private fun VaultScreen(
         item { Text("Vault Nest", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         item {
             Text(
-                "${entries.size} / ${BuildConfig.WATCH_VAULT_MAX_ENTRIES} passwords",
+                "${entries.count { it.origin == WatchEntryOrigin.WATCH }} / ${BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES} watch only  •  " +
+                    "${entries.count { it.origin == WatchEntryOrigin.PHONE }} / ${BuildConfig.WATCH_VAULT_MAX_ENTRIES} synced",
                 fontSize = 11.sp,
             )
         }
@@ -423,7 +528,7 @@ private fun VaultScreen(
         if (entries.isEmpty()) {
             item {
                 Text(
-                    "No credentials yet. Send one from Vault Nest on your phone.",
+                    "No passwords yet. Generate one here or sync selected credentials from your phone.",
                     textAlign = TextAlign.Center,
                     fontSize = 12.sp,
                 )
@@ -436,7 +541,7 @@ private fun VaultScreen(
                     label = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     secondaryLabel = {
                         Text(
-                            if (entry.username.isBlank()) "Password" else entry.username,
+                            if (entry.origin == WatchEntryOrigin.WATCH) "Watch only" else "Synced from phone",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -444,6 +549,15 @@ private fun VaultScreen(
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = entries.count { it.origin == WatchEntryOrigin.WATCH } < BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES,
+                onClick = { generatorOpen = true },
+                label = { Text("Generate password") },
+                secondaryLabel = { Text("Saved only on this watch") },
+            )
         }
         item {
             Chip(
@@ -509,19 +623,74 @@ private fun VaultScreen(
 }
 
 @Composable
-private fun PasswordDetail(entry: WatchEntry, onBack: () -> Unit) {
-    BasicSwipeToDismissBox(onDismissed = onBack) { isBackground ->
-        if (isBackground) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
-        } else {
-            PasswordDetailContent(entry, onBack)
+private fun PasswordGeneratorScreen(onCancel: () -> Unit, onSave: (String, String) -> Unit) {
+    val labels = listOf("Email", "Wi-Fi", "Banking", "Work", "Watch password")
+    var selectedLabel by rememberSaveable { mutableStateOf(labels.first()) }
+    var password by remember { mutableStateOf(WatchPasswordGenerator.generate()) }
+    WearScrollableScaffold {
+        item { Text("Generate password", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        item { Text("20 characters • watch only", fontSize = 11.sp, color = Color(0xFFAAB8B0)) }
+        item {
+            Text(
+                password,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { password = WatchPasswordGenerator.generate() },
+                label = { Text("Regenerate") },
+            )
+        }
+        item { Text("Choose a label", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        items(labels) { label ->
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { selectedLabel = label },
+                label = { Text(if (selectedLabel == label) "✓ $label" else label) },
+                colors = if (selectedLabel == label) {
+                    ChipDefaults.primaryChipColors()
+                } else {
+                    ChipDefaults.secondaryChipColors()
+                },
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onSave(selectedLabel, password) },
+                label = { Text("Save on watch") },
+            )
+        }
+        item {
+            Chip(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onCancel,
+                label = { Text("Cancel") },
+                colors = ChipDefaults.secondaryChipColors(),
+            )
         }
     }
 }
 
 @Composable
-private fun PasswordDetailContent(entry: WatchEntry, onBack: () -> Unit) {
+private fun PasswordDetail(entry: WatchEntry, onBack: () -> Unit, onDelete: (() -> Unit)?) {
+    BasicSwipeToDismissBox(onDismissed = onBack) { isBackground ->
+        if (isBackground) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        } else {
+            PasswordDetailContent(entry, onBack, onDelete)
+        }
+    }
+}
+
+@Composable
+private fun PasswordDetailContent(entry: WatchEntry, onBack: () -> Unit, onDelete: (() -> Unit)?) {
     var revealed by remember(entry.id) { mutableStateOf(false) }
+    var confirmDelete by remember(entry.id) { mutableStateOf(false) }
     LaunchedEffect(revealed) {
         if (revealed) {
             delay(10_000)
@@ -540,6 +709,13 @@ private fun PasswordDetailContent(entry: WatchEntry, onBack: () -> Unit) {
         if (entry.username.isNotBlank()) {
             item { DetailValue("Username", entry.username) }
         }
+        item {
+            Text(
+                if (entry.origin == WatchEntryOrigin.WATCH) "Watch only" else "Synced from phone",
+                fontSize = 11.sp,
+                color = Color(0xFFAAB8B0),
+            )
+        }
         item { DetailValue("Password", if (revealed) entry.password else "••••••••") }
         item {
             Chip(
@@ -547,6 +723,18 @@ private fun PasswordDetailContent(entry: WatchEntry, onBack: () -> Unit) {
                 onClick = { revealed = !revealed },
                 label = { Text(if (revealed) "Hide password" else "Show for 10 seconds") },
             )
+        }
+        if (onDelete != null) {
+            item {
+                Chip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        if (confirmDelete) onDelete() else confirmDelete = true
+                    },
+                    label = { Text(if (confirmDelete) "Tap again to delete" else "Delete from watch") },
+                    colors = ChipDefaults.chipColors(backgroundColor = Color(0xFF4A2024)),
+                )
+            }
         }
         item {
             val context = LocalContext.current

@@ -24,12 +24,15 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+enum class WatchEntryOrigin { PHONE, WATCH }
+
 data class WatchEntry(
     val id: String,
     val title: String,
     val username: String,
     val password: String,
     val updatedAt: String,
+    val origin: WatchEntryOrigin = WatchEntryOrigin.PHONE,
 )
 
 data class PinResult(val success: Boolean, val waitMillis: Long = 0)
@@ -47,7 +50,16 @@ class WatchVaultRepository(private val context: Context) {
 
     @Synchronized
     fun replace(entries: List<WatchEntry>) {
-        WatchPayloadValidator.validate(WatchProtocol.VERSION, entries, BuildConfig.WATCH_VAULT_MAX_ENTRIES)
+        WatchPayloadValidator.validate(
+            WatchProtocol.VERSION,
+            entries,
+            BuildConfig.WATCH_VAULT_MAX_ENTRIES + BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES,
+        )
+        WatchEntryCollection.validateLimits(
+            entries,
+            BuildConfig.WATCH_VAULT_MAX_ENTRIES,
+            BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES,
+        )
         val temporary = File(context.filesDir, "watch-vault-v1.tmp")
         temporary.writeBytes(encryptAtRest(WatchEntryCodec.encode(entries).toByteArray(StandardCharsets.UTF_8), "watch-vault-records-v1"))
         check(temporary.renameTo(vaultFile) || temporary.copyTo(vaultFile, overwrite = true).let { temporary.delete(); true })
@@ -56,6 +68,40 @@ class WatchVaultRepository(private val context: Context) {
     @Synchronized
     fun clearEntries() {
         if (vaultFile.exists()) vaultFile.delete()
+    }
+
+    @Synchronized
+    fun replacePhoneEntries(entries: List<WatchEntry>) {
+        replace(
+            WatchEntryCollection.mergePhoneEntries(
+                this.entries(),
+                entries,
+                BuildConfig.WATCH_VAULT_MAX_ENTRIES,
+                BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES,
+            ),
+        )
+    }
+
+    @Synchronized
+    fun clearPhoneEntries() {
+        replace(WatchEntryCollection.clearPhoneEntries(entries()))
+    }
+
+    @Synchronized
+    fun addWatchEntry(entry: WatchEntry) {
+        replace(
+            WatchEntryCollection.addLocalEntry(
+                entries(),
+                entry,
+                BuildConfig.WATCH_VAULT_MAX_ENTRIES,
+                BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES,
+            ),
+        )
+    }
+
+    @Synchronized
+    fun deleteWatchEntry(id: String) {
+        replace(WatchEntryCollection.deleteLocalEntry(entries(), id))
     }
 
     fun hasPin(): Boolean = preferences.contains(PIN_HASH)
@@ -69,6 +115,10 @@ class WatchVaultRepository(private val context: Context) {
     }
 
     fun setPinRequired(required: Boolean) {
+        if (!required && runCatching { entries().any { it.origin == WatchEntryOrigin.WATCH } }.getOrDefault(false)) {
+            preferences.edit().putBoolean(PIN_REQUIRED, true).apply()
+            return
+        }
         val editor = preferences.edit().putBoolean(PIN_REQUIRED, required)
         if (!required) {
             editor
@@ -92,12 +142,13 @@ class WatchVaultRepository(private val context: Context) {
         require(pin.matches(Regex("\\d{4,6}"))) { "PIN must contain 4 to 6 digits" }
         val salt = ByteArray(16).also(RANDOM::nextBytes)
         val hash = PinHasher.hash(pin.toCharArray(), salt)
-        preferences.edit()
+        check(preferences.edit()
             .putString(PIN_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
             .putString(PIN_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
             .putInt(PIN_FAILURES, 0)
             .remove(PIN_LOCK_UNTIL)
-            .apply()
+            .putBoolean(PIN_REQUIRED, true)
+            .commit()) { "Watch PIN could not be persisted" }
     }
 
     fun verifyPin(pin: String): PinResult {
