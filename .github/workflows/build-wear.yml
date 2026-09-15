@@ -122,6 +122,9 @@ jobs:
           fi
           gradle -p wear assembleDebug assembleRelease bundleRelease --stacktrace
 
+      - name: 🔎 Verify final Wear AAB manifest
+        run: node scripts/verify-wear-artifact.mjs wear/app/build/outputs/bundle/release/app-release.aab
+
       - name: 📦 Normalize and verify Wear artifacts
         run: |
           DEBUG_APK="releases/wear/vault-nest-wear-debug-${WEAR_VERSION_NAME}.apk"
