@@ -52,18 +52,17 @@ const checks = [
     'Credential details support swipe-to-dismiss',
     sources.activity.includes('BasicSwipeToDismissBox('),
   ],
-  ['Watch can open setup on the paired phone', sources.activity.includes('RemoteActivityHelper(')],
   [
     'First launch offers complete watch-only setup',
     sources.activity.includes('StandaloneOnboardingScreen(') &&
       sources.activity.includes('Set up on this watch') &&
-      sources.activity.includes('Connect Android phone'),
+      sources.activity.includes('No phone or account is required'),
   ],
   [
-    'Every phone setup route retains a watch-only alternative',
-    sources.activity.includes(
-      'PhoneConnectionScreen(onRefresh: () -> Unit, onSetUpOnWatch: () -> Unit)',
-    ) && sources.activity.includes('onClick = onSetUpOnWatch'),
+    'First launch cannot enter a companion-dependent route',
+    !sources.activity.includes('Connect Android phone') &&
+      !sources.activity.includes('Open phone setup') &&
+      !sources.activity.includes('RemoteActivityHelper'),
   ],
   [
     'Watch generates passwords locally with SecureRandom',
@@ -92,10 +91,6 @@ const checks = [
     'Local and synchronized limits are independently configurable',
     /WATCH_VAULT_MAX_ENTRIES\s*=\s*\d+/.test(sources.watchEnvironment) &&
       /WATCH_VAULT_MAX_LOCAL_ENTRIES\s*=\s*\d+/.test(sources.watchEnvironment),
-  ],
-  [
-    'Remote phone failures are contained',
-    sources.activity.includes('runCatching {\n        RemoteActivityHelper'),
   ],
   [
     'PIN hashing leaves the UI thread',

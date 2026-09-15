@@ -4,9 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -43,7 +41,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.wear.compose.foundation.BasicSwipeToDismissBox
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -59,7 +56,6 @@ import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
-import androidx.wear.remote.interactions.RemoteActivityHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,21 +78,16 @@ class MainActivity : ComponentActivity() {
         repository = WatchVaultRepository(applicationContext)
         setContent {
             val currentRevision = repositoryRevision
-            var onboardingRoute by rememberSaveable { mutableStateOf("welcome") }
+            var localSetupStarted by rememberSaveable { mutableStateOf(false) }
             VaultNestWearTheme {
                 when {
-                    !repository.integrationConfigured() && onboardingRoute == "welcome" -> StandaloneOnboardingScreen(
-                        onSetUpOnWatch = { onboardingRoute = "local" },
-                        onConnectPhone = { onboardingRoute = "phone" },
+                    !repository.integrationConfigured() && !localSetupStarted -> StandaloneOnboardingScreen(
+                        onSetUpOnWatch = { localSetupStarted = true },
                     )
-                    !repository.integrationConfigured() && onboardingRoute == "phone" -> PhoneConnectionScreen(
-                        onRefresh = { repositoryRevision++ },
-                        onSetUpOnWatch = { onboardingRoute = "local" },
-                    )
-                    (onboardingRoute == "local" && !repository.hasPin()) ||
+                    (localSetupStarted && !repository.hasPin()) ||
                         (repository.pinRequired() && !repository.hasPin()) -> PinSetupScreen(repository) {
                         locked = false
-                        onboardingRoute = "welcome"
+                        localSetupStarted = false
                     }
                     repository.pinRequired() && locked -> PinUnlockScreen(repository) {
                         locked = false
@@ -129,7 +120,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun StandaloneOnboardingScreen(onSetUpOnWatch: () -> Unit, onConnectPhone: () -> Unit) {
+private fun StandaloneOnboardingScreen(onSetUpOnWatch: () -> Unit) {
     WearScrollableScaffold {
         item {
             Image(
@@ -141,7 +132,7 @@ private fun StandaloneOnboardingScreen(onSetUpOnWatch: () -> Unit, onConnectPhon
         item { Text("Vault Nest", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         item {
             Text(
-                "Create and store passwords securely on this watch. A phone is optional.",
+                "Create and store passwords securely on this watch. No phone or account is required.",
                 textAlign = TextAlign.Center,
                 fontSize = 12.sp,
             )
@@ -153,118 +144,7 @@ private fun StandaloneOnboardingScreen(onSetUpOnWatch: () -> Unit, onConnectPhon
                 label = { Text("Set up on this watch") },
             )
         }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onConnectPhone,
-                label = { Text("Connect Android phone") },
-                colors = ChipDefaults.secondaryChipColors(),
-            )
-        }
     }
-}
-
-@Composable
-private fun PhoneConnectionScreen(onRefresh: () -> Unit, onSetUpOnWatch: () -> Unit) {
-    val context = LocalContext.current
-    var status by remember {
-        mutableStateOf("Your vault stays empty until you choose a credential on the paired phone.")
-    }
-    WearScrollableScaffold {
-        item {
-            Image(
-                painter = painterResource(R.drawable.vault_nest_brand),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-            )
-        }
-        item {
-            Text(
-                "Connect Android phone",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
-        }
-        item {
-            Text(
-                status,
-                textAlign = TextAlign.Center,
-                fontSize = 12.sp,
-            )
-        }
-        item {
-            Text(
-                "Open Vault Nest on your paired phone and enable Wear OS. You can also use this watch without a phone.",
-                textAlign = TextAlign.Start,
-                fontSize = 12.sp,
-            )
-        }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    openOnPhone(context, Uri.parse("vaultnest://wear-os")) { result -> status = result }
-                },
-                label = { Text("Open phone setup") },
-            )
-        }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    openOnPhone(
-                        context,
-                        Uri.parse("https://play.google.com/store/apps/details?id=com.actionanand.vaultnest.app"),
-                    ) { result -> status = result }
-                },
-                label = { Text("Install or update phone app") },
-                colors = ChipDefaults.secondaryChipColors(),
-            )
-        }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onSetUpOnWatch,
-                label = { Text("Set up on this watch") },
-            )
-        }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    status = "Checking again. Pairing also resumes automatically after the phone reconnects."
-                    onRefresh()
-                },
-                label = { Text("Check again") },
-                colors = ChipDefaults.secondaryChipColors(),
-            )
-        }
-    }
-}
-
-private fun openOnPhone(context: Context, uri: Uri, onResult: (String) -> Unit) {
-    onResult("Opening Vault Nest on your paired phone…")
-    val executor = ContextCompat.getMainExecutor(context)
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-        .addCategory(Intent.CATEGORY_BROWSABLE)
-    val future = runCatching {
-        RemoteActivityHelper(context, executor).startRemoteActivity(intent, null)
-    }.getOrElse {
-        onResult("Phone unavailable. Check that it is paired and Vault Nest is installed.")
-        return
-    }
-    future.addListener(
-        {
-            runCatching(future::get).fold(
-                onSuccess = { onResult("Continue setup in Vault Nest on your phone.") },
-                onFailure = {
-                    onResult("Phone unavailable. Check that it is paired and Vault Nest is installed.")
-                },
-            )
-        },
-        executor,
-    )
 }
 
 @Composable
@@ -516,9 +396,14 @@ private fun VaultScreen(
     WearScrollableScaffold {
         item { Text("Vault Nest", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         item {
+            val localCount = entries.count { it.origin == WatchEntryOrigin.WATCH }
+            val syncedCount = entries.count { it.origin == WatchEntryOrigin.PHONE }
             Text(
-                "${entries.count { it.origin == WatchEntryOrigin.WATCH }} / ${BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES} watch only  •  " +
-                    "${entries.count { it.origin == WatchEntryOrigin.PHONE }} / ${BuildConfig.WATCH_VAULT_MAX_ENTRIES} synced",
+                if (syncedCount > 0) {
+                    "$localCount watch only  •  $syncedCount synced"
+                } else {
+                    "$localCount / ${BuildConfig.WATCH_VAULT_MAX_LOCAL_ENTRIES} watch passwords"
+                },
                 fontSize = 11.sp,
             )
         }
@@ -528,7 +413,7 @@ private fun VaultScreen(
         if (entries.isEmpty()) {
             item {
                 Text(
-                    "No passwords yet. Generate one here or sync selected credentials from your phone.",
+                    "No passwords yet. Generate one securely on this watch.",
                     textAlign = TextAlign.Center,
                     fontSize = 12.sp,
                 )
@@ -559,19 +444,21 @@ private fun VaultScreen(
                 secondaryLabel = { Text("Saved only on this watch") },
             )
         }
-        item {
-            Chip(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    scope.launch {
-                        entries = withContext(Dispatchers.IO) {
-                            runCatching(repository::entries).getOrDefault(emptyList())
+        if (entries.any { it.origin == WatchEntryOrigin.PHONE }) {
+            item {
+                Chip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        scope.launch {
+                            entries = withContext(Dispatchers.IO) {
+                                runCatching(repository::entries).getOrDefault(emptyList())
+                            }
+                            message = "Synced items refreshed."
                         }
-                        message = "Synced items refreshed."
-                    }
-                },
-                label = { Text("Refresh synced items") },
-            )
+                    },
+                    label = { Text("Refresh synced items") },
+                )
+            }
         }
         if (repository.pinRequired()) {
             item {

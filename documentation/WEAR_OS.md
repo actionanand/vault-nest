@@ -17,8 +17,8 @@ watch-only workflow.
    and choose **Save on watch**.
 5. Open the saved entry to reveal it for ten seconds, copy it, or delete it after confirmation.
 
-**Connect Android phone** is a secondary first-launch option. Its screen always retains a
-**Set up on this watch** action, so failed pairing cannot strand the user or a Play reviewer.
+First launch deliberately exposes no phone-dependent route. Optional synchronization is configured
+from the Android application after the independent watch vault is already usable.
 
 ## Entry limits and ownership
 
@@ -48,11 +48,13 @@ The independent `.github/workflows/build-wear.yml` workflow runs for `main-wear`
 dispatch. It reads the Android semantic base from `android-version.json` and Wear revision/code
 from `wear-version.json`. For example, Android `1.0.19` and Wear revision `1` produce
 `1.0.19-wear.1`. CI increments only the Wear `versionCode` on `main-wear`; the next build after
-rejected code `2008` is `2009`.
+rejected code `2009` is `2010`.
 
 The workflow validates Play-quality contracts, runs unit tests, builds debug/release APKs and a
-release AAB, verifies signatures, and writes only to `releases/wear/`. Android and Wear workflows
-do not delete or stage each other's artifacts.
+release AAB, verifies the final AAB manifest, verifies signatures, and writes only to
+`releases/wear/`. The artifact gate requires `standalone=true`, target API 36, the expected package,
+the Wear hardware feature, matching 64-bit ABIs, and no compiled first-launch action that sends the
+reviewer to a phone. Android and Wear workflows do not delete or stage each other's artifacts.
 
 Required repository secrets are `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and
 `KEY_PASSWORD`.
@@ -73,7 +75,7 @@ OS 3+ devices, including large fonts.
 
 ## Play submission
 
-Replace rejected Wear version `2008` on every active internal, closed, open, and production track.
+Replace rejected Wear version `2009` on every active internal, closed, open, and production track.
 Do not leave the rejected artifact active on another track. Suggested listing text:
 
 > Vault Nest works independently on your Wear OS watch. Create a Watch PIN, generate and securely
@@ -82,6 +84,14 @@ Do not leave the rejected artifact active on another track. Suggested listing te
 
 Give reviewers this exact path: launch → **Set up on this watch** → create PIN →
 **Generate password** → save → open → reveal/copy → delete.
+
+Do not reuse older review instructions that ask the reviewer to connect a phone. In Play Console
+**App access** and release notes, state that no account, phone, or special access is required. If an
+older non-compliant Wear artifact remains active on another track, move it to **Not included**.
+
+Target API is not the cause of the version 2009 rejection: the final artifact targets API 36, while
+the current Wear requirement is API 34 or higher. The rejection text identifies the companion-app
+classification/path instead.
 
 Official references: [Wear OS app quality](https://developer.android.com/docs/quality-guidelines/wear-app-quality),
 [Wear scrolling surfaces](https://developer.android.com/design/ui/wear/guides/surfaces/apps), and
