@@ -35,7 +35,10 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # The action otherwise requests the retired SDK package named "tools".
+          packages: ''
       - name: Install locked dependencies
         run: npm ci
       - name: Bump versionCode and commit
