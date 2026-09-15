@@ -71,11 +71,18 @@ jobs:
 
       - name: 🤖 Setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # The action's default includes the retired SDK package named "tools".
+          # Install only this project's versioned packages in the next step.
+          packages: ''
 
       - name: 📥 Install Wear Android platform
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platforms;android-${WEAR_COMPILE_SDK_VERSION}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" "platform-tools"
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${WEAR_COMPILE_SDK_VERSION}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"
+          sdkmanager --list_installed
 
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v6
